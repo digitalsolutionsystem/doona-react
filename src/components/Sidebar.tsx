@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ChevronLeft,
   Database,
@@ -33,7 +33,7 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Menu Utama',
+    label: 'Operasional',
     items: [
       { id: 'home', label: 'Beranda', icon: Home },
       { id: 'in', label: 'Input Harian', icon: PenLine },
@@ -41,15 +41,14 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'Keuangan',
-    items: [{ id: 'om', label: 'OMSET', icon: Wallet }],
+    label: 'Keuangan & SDM',
+    items: [
+      { id: 'om', label: 'OMSET', icon: Wallet },
+      { id: 'ab', label: 'Absensi & Gaji', icon: Users },
+    ],
   },
   {
-    label: 'Karyawan',
-    items: [{ id: 'ab', label: 'Absensi & Gaji', icon: Users }],
-  },
-  {
-    label: 'Manajemen',
+    label: 'Inventori & Sistem',
     items: [
       { id: 'aw', label: 'Stok Awal', icon: Package },
       { id: 'ms', label: 'Master Item', icon: SlidersHorizontal },
@@ -86,14 +85,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     logout,
   } = useApp();
 
-  const navSectionRef = useRef<HTMLDivElement | null>(null);
-  const btnRefs = useRef<Partial<Record<MenuId, HTMLButtonElement | null>>>({});
-  const [indStyle, setIndStyle] = useState<{ top: number; height: number; visible: boolean }>({
-    top: 0,
-    height: 38,
-    visible: false,
-  });
-  const [noAnim, setNoAnim] = useState(true);
   const [avatarErr, setAvatarErr] = useState(false);
   const [logoErr, setLogoErr] = useState(false);
 
@@ -101,39 +92,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     setAvatarErr(false);
   }, [userPhoto]);
-
-  const recalcIndicator = (instant = false) => {
-    const btn = btnRefs.current[activeMenu];
-    if (!btn) {
-      setIndStyle((prev) => ({ ...prev, visible: false }));
-      return;
-    }
-    if (instant) setNoAnim(true);
-    setIndStyle({
-      top: btn.offsetTop,
-      height: btn.offsetHeight,
-      visible: true,
-    });
-    if (instant) {
-      requestAnimationFrame(() => setNoAnim(false));
-    }
-  };
-
-  useLayoutEffect(() => {
-    recalcIndicator(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMenu]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => recalcIndicator(true), 260);
-    const onResize = () => recalcIndicator(true);
-    window.addEventListener('resize', onResize);
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener('resize', onResize);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collapsed, activeMenu]);
 
   // Keyboard shortcut F untuk toggle sidebar
   useEffect(() => {
@@ -164,27 +122,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Mobile Header Trigger Bar (hanya tampil < 900px) */}
-      <div className="no-print md:hidden sticky top-0 z-40 flex items-center justify-between gap-3 bg-[#111111] px-4 py-2.5 text-white border-b border-[#2c2c2c]">
+      {/* Mobile Header Bar (< 900px) */}
+      <div className="no-print sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-[#202824] bg-[#111614] px-4 py-2.5 text-white md:hidden">
         <button
           type="button"
           onClick={onOpenMobile}
           aria-label="Buka menu navigasi"
-          className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#262626] text-white hover:bg-[#333]"
+          className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-4.5 w-4.5" />
         </button>
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm font-bold tracking-wide truncate">DOONA GOLF</span>
-          <span className="text-xs text-[#b5b5b5] whitespace-nowrap">· {roleLabel}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="font-display truncate text-sm font-semibold tracking-tight text-white">
+            Doona Golf
+          </span>
+          <span className="whitespace-nowrap text-xs text-[#96a09b]">· {roleLabel}</span>
         </div>
         <button
           type="button"
           onClick={() => navigateTo('db')}
           title="Status Koneksi Database"
-          className="flex h-10 items-center gap-1.5 rounded-lg bg-[#262626] px-2.5 text-xs font-medium text-[#e2e8f0]"
+          className="flex h-9 items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2.5 text-xs font-medium text-[#d7deda]"
         >
-          <Database className="h-3.5 w-3.5 text-[#1a9e94]" />
+          <Database className={`h-3.5 w-3.5 ${dbConnected ? 'text-[#4ade80]' : 'text-[#fbbf24]'}`} />
           <span className="whitespace-nowrap">{dbConnected ? 'Cloud' : 'Lokal'}</span>
         </button>
       </div>
@@ -192,7 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Mobile Backdrop */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-90 bg-slate-900/60 backdrop-blur-[2px] md:hidden"
+          className="fixed inset-0 z-90 bg-black/50 backdrop-blur-[1px] md:hidden"
           onClick={onCloseMobile}
         />
       )}
@@ -203,111 +163,101 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className={`dg-sidebar no-print ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}
       >
         <div className="dg-sidebar-inner">
-          {/* Brand / User Profile Header */}
+          {/* Brand Lockup Header */}
           <div
-            className={`relative flex border-b border-[#2c2c2c] min-h-[62px] ${
-              collapsed
-                ? 'flex-col items-start justify-start gap-2.5 px-0 pl-1.5 pt-3.5 pb-2.5'
-                : 'items-center gap-2.5 py-3.5 pr-3 pl-1.5'
+            className={`flex min-h-[60px] items-center border-b border-[#202824] ${
+              collapsed ? 'flex-col justify-center gap-2 px-2 py-3' : 'justify-between gap-2 px-4 py-3'
             }`}
           >
             <button
               type="button"
               onClick={() => handleSelectMenu('home')}
-              title="Beranda"
-              className="flex h-[50px] w-[50px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-[#1a9e94] text-lg font-bold text-white shadow-md cursor-pointer"
+              title="DOONA GOLF – Beranda"
+              className={`flex min-w-0 items-center gap-2.5 text-left cursor-pointer ${
+                collapsed ? 'justify-center' : ''
+              }`}
             >
-              {userPhoto && !avatarErr ? (
-                <img
-                  src={userPhoto}
-                  alt={displayName}
-                  referrerPolicy="no-referrer"
-                  onError={() => setAvatarErr(true)}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <span>{initial}</span>
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/12 bg-[#14533c] text-xs font-bold text-white">
+                {!logoErr ? (
+                  <img
+                    src={DOONA_LOGO_URL}
+                    alt="Doona Golf"
+                    referrerPolicy="no-referrer"
+                    onError={() => setLogoErr(true)}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span>DG</span>
+                )}
+              </div>
+              {!collapsed && (
+                <div className="min-w-0">
+                  <strong className="font-display block truncate text-[14.5px] font-semibold leading-tight text-white">
+                    Doona Golf
+                  </strong>
+                  <span className="block truncate text-[11px] text-[#84908a]">
+                    Operasional &amp; Stok
+                  </span>
+                </div>
               )}
             </button>
 
-            {!collapsed && (
-              <div className="flex-1 min-w-0">
-                <strong className="block truncate text-[13px] font-bold tracking-wide text-white">
-                  {displayName}
-                </strong>
-                <small className="block truncate text-[10.5px] tracking-wider text-[#b5b5b5]">
-                  @{user?.username || 'lokal'} · {roleLabel}
-                </small>
-              </div>
-            )}
-
-            {/* Desktop collapse button */}
             <button
               type="button"
               onClick={onToggleCollapse}
-              title={collapsed ? 'Tampilkan sidebar (F)' : 'Sembunyikan sidebar (F)'}
-              className={`hidden md:flex shrink-0 items-center justify-center rounded-md text-[#b5b5b5] transition-colors hover:bg-[#262626] hover:text-white cursor-pointer ${
-                collapsed ? 'ml-2.5 h-[26px] w-8 bg-[#262626] text-white' : 'h-7 w-7'
-              }`}
+              title={collapsed ? 'Perluas sidebar (F)' : 'Ciutkan sidebar (F)'}
+              className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#84908a] transition hover:bg-white/8 hover:text-white md:flex cursor-pointer"
             >
               <ChevronLeft
                 className={`h-4 w-4 transition-transform duration-200 ${collapsed ? 'rotate-180' : ''}`}
               />
             </button>
 
-            {/* Mobile close button */}
             <button
               type="button"
               onClick={onCloseMobile}
               aria-label="Tutup menu"
-              className="flex md:hidden h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#b5b5b5] hover:bg-[#262626] hover:text-white"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#84908a] hover:bg-white/8 hover:text-white md:hidden"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
           {/* Navigation Groups */}
-          <div ref={navSectionRef} className="dg-nav-section">
-            <div
-              className={`dg-nav-ind ${noAnim ? 'no-anim' : ''}`}
-              style={{
-                transform: `translateY(${indStyle.top}px)`,
-                height: `${indStyle.height}px`,
-                opacity: indStyle.visible ? 1 : 0,
-              }}
-            />
-
+          <div className="dg-nav-section">
             {NAV_GROUPS.map((group, gIdx) => (
-              <div key={group.label} className={gIdx > 0 ? 'mt-1' : ''}>
+              <div key={group.label} className={gIdx > 0 ? 'mt-4' : ''}>
                 {!collapsed && (
-                  <div className="px-[18px] pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7d7d7d] whitespace-nowrap">
+                  <div className="px-4 pb-1.5 text-[11px] font-medium text-[#6c7872] whitespace-nowrap">
                     {group.label}
                   </div>
                 )}
-                <nav>
+                {collapsed && gIdx > 0 && (
+                  <div className="mx-3.5 mb-2 border-t border-[#202824]" />
+                )}
+                <nav className="space-y-0.5 px-2.5">
                   {group.items.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeMenu === item.id;
                     return (
                       <button
                         key={item.id}
-                        ref={(el) => {
-                          btnRefs.current[item.id] = el;
-                        }}
                         type="button"
                         onClick={() => handleSelectMenu(item.id)}
                         title={item.label}
-                        className={`relative z-1 mx-2 mb-1 flex w-[calc(100%-16px)] items-center gap-2.5 rounded-[9px] text-left text-[13px] whitespace-nowrap overflow-hidden transition-colors cursor-pointer ${
-                          collapsed ? 'py-2.5 pr-2.5 pl-4' : 'py-[9px] pr-2.5 pl-4'
+                        className={`group relative flex w-full items-center gap-2.5 rounded-md text-left text-[13px] whitespace-nowrap transition-colors cursor-pointer ${
+                          collapsed ? 'justify-center px-0 py-2.5' : 'px-2.5 py-2'
                         } ${
                           isActive
-                            ? 'bg-transparent font-semibold text-[#1f2a36]'
-                            : 'bg-transparent font-medium text-[#b5b5b5] hover:bg-[#262626] hover:text-[#e2e8f0]'
+                            ? 'bg-white/10 font-medium text-white'
+                            : 'font-normal text-[#9aa5a0] hover:bg-white/[0.05] hover:text-[#e6ece9]'
                         }`}
                       >
                         <Icon
-                          className={`h-4 w-4 shrink-0 ${
-                            isActive ? 'text-[#1a9e94]' : 'text-current'
+                          className={`h-4 w-4 shrink-0 transition-colors ${
+                            isActive
+                              ? 'text-[#6ee7b7]'
+                              : 'text-[#7b8882] group-hover:text-[#c7d1cc]'
                           }`}
                         />
                         {!collapsed && <span className="truncate">{item.label}</span>}
@@ -319,41 +269,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ))}
           </div>
 
-          {/* Sidebar Footer */}
-          <div className="border-t border-[#2c2c2c] px-2 py-2.5">
+          {/* Sidebar Footer: Account + Sync Status */}
+          <div className="border-t border-[#202824] px-3 py-3">
             {!collapsed && (
-              <div className="mb-2 flex items-center justify-between gap-1.5 px-1">
-                <div
-                  className={`truncate text-[11px] font-medium ${
-                    sync.isError ? 'text-[#ef7f78]' : 'text-[#b5b5b5]'
+              <div className="mb-2.5 flex items-center justify-between gap-2 px-1">
+                <button
+                  type="button"
+                  onClick={() => handleSelectMenu('db')}
+                  title={
+                    dbConnected
+                      ? 'Terhubung ke Google Sheets'
+                      : 'Mode Lokal / Belum terhubung Cloud'
+                  }
+                  className={`flex min-w-0 items-center gap-1.5 text-left text-[11px] font-medium transition hover:text-white cursor-pointer ${
+                    sync.isError ? 'text-[#f87171]' : 'text-[#8c9892]'
                   }`}
-                  title={sync.text}
                 >
-                  {sync.text}
-                </div>
+                  <Database
+                    className={`h-3 w-3 shrink-0 ${
+                      sync.isError
+                        ? 'text-[#f87171]'
+                        : dbConnected
+                          ? 'text-[#4ade80]'
+                          : 'text-[#fbbf24]'
+                    }`}
+                  />
+                  <span className="truncate">{sync.text}</span>
+                </button>
                 <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleSelectMenu('db')}
-                    title={
-                      dbConnected
-                        ? 'Terhubung ke Google Sheets'
-                        : 'Mode Lokal / Belum terhubung Cloud'
-                    }
-                    className="relative flex h-[26px] w-[26px] items-center justify-center rounded-md bg-white/10 text-[#d9d9d9] hover:bg-white/25 hover:text-white cursor-pointer"
-                  >
-                    <Database className="h-3.5 w-3.5" />
-                    <span
-                      className={`absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full ring-[1.5px] ring-[#2d363d] ${
-                        dbConnected ? 'bg-[#2fb67c]' : 'bg-[#f0b429]'
-                      }`}
-                    />
-                  </button>
                   <button
                     type="button"
                     onClick={() => setShowChangePwdModal(true)}
                     title="Ganti Password"
-                    className="flex h-[26px] w-[26px] items-center justify-center rounded-md bg-white/10 text-[#d9d9d9] hover:bg-white/25 hover:text-white cursor-pointer"
+                    className="flex h-6 w-6 items-center justify-center rounded text-[#8c9892] transition hover:bg-white/10 hover:text-white cursor-pointer"
                   >
                     <KeyRound className="h-3.5 w-3.5" />
                   </button>
@@ -362,7 +310,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       type="button"
                       onClick={() => setShowLoginModal(true)}
                       title="Masuk Akun Cloud"
-                      className="flex h-[26px] w-[26px] items-center justify-center rounded-md bg-[#1a9e94]/25 text-[#5eead4] hover:bg-[#1a9e94] hover:text-white cursor-pointer"
+                      className="flex h-6 w-6 items-center justify-center rounded text-[#6ee7b7] transition hover:bg-[#14533c] hover:text-white cursor-pointer"
                     >
                       <LogIn className="h-3.5 w-3.5" />
                     </button>
@@ -371,7 +319,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       type="button"
                       onClick={logout}
                       title="Kunci / Keluar"
-                      className="flex h-[26px] w-[26px] items-center justify-center rounded-md bg-white/10 text-[#d9d9d9] hover:bg-[#e5534b]/25 hover:text-[#e5534b] cursor-pointer"
+                      className="flex h-6 w-6 items-center justify-center rounded text-[#8c9892] transition hover:bg-red-500/20 hover:text-[#fca5a5] cursor-pointer"
                     >
                       <LogOut className="h-3.5 w-3.5" />
                     </button>
@@ -380,28 +328,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             )}
 
-            <div className="flex items-center gap-2 rounded-[9px] bg-[#262626] px-2.5 py-2 overflow-hidden">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-[7px] bg-[#3b4a56] text-[11px] font-bold text-white">
-                {!logoErr ? (
+            <div
+              className={`flex items-center gap-2.5 rounded-md bg-white/[0.04] px-2 py-2 ${
+                collapsed ? 'justify-center px-1' : ''
+              }`}
+            >
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#14533c] text-[11px] font-semibold text-white">
+                {userPhoto && !avatarErr ? (
                   <img
-                    src={DOONA_LOGO_URL}
-                    alt="DG"
+                    src={userPhoto}
+                    alt={displayName}
                     referrerPolicy="no-referrer"
-                    onError={() => setLogoErr(true)}
+                    onError={() => setAvatarErr(true)}
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span>DG</span>
+                  <span>{initial}</span>
                 )}
               </div>
               {!collapsed && (
                 <div className="min-w-0 flex-1">
-                  <strong className="block truncate text-xs leading-tight text-[#e2e8f0]">
-                    Doona Golf
+                  <strong className="block truncate text-xs font-medium text-[#edf2ef]">
+                    {displayName}
                   </strong>
-                  <small className="block truncate text-[11px] text-[#b5b5b5]">
-                    Stok Manager
-                  </small>
+                  <span className="block truncate text-[11px] text-[#7c8882]">
+                    @{user?.username || 'lokal'} · {roleLabel}
+                  </span>
                 </div>
               )}
             </div>

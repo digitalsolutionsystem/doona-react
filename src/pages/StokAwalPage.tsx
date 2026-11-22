@@ -65,7 +65,6 @@ export const StokAwalPage: React.FC = () => {
     [state, ym, prevYm]
   );
 
-  // Reset buffer ketik saat pindah bulan
   useEffect(() => {
     setEditingDrafts({});
     setInvalidHint(null);
@@ -113,7 +112,6 @@ export const StokAwalPage: React.FC = () => {
     [filteredGroups]
   );
 
-  // Auto-focus item kosong pertama pada desktop saat membuka halaman / ganti bulan (identik qFocus)
   useEffect(() => {
     if (isViewer || searchQuery || filterMode !== 'all' || orderedVisibleIds.length === 0) return;
     if (typeof window !== 'undefined' && window.matchMedia('(pointer:fine)').matches) {
@@ -149,7 +147,6 @@ export const StokAwalPage: React.FC = () => {
     }
   }, [isViewer, isSaving, saveStokAwalNow, monthLabel]);
 
-  // Shortcut Ctrl+S / Cmd+S untuk simpan langsung
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -165,7 +162,6 @@ export const StokAwalPage: React.FC = () => {
     if (isViewer) return;
     const key = getCellKey(itemId);
 
-    // Cek karakter non-numerik
     const cleanedChars = raw.replace(/[^0-9.,-]/g, '');
     if (cleanedChars !== raw) {
       setInvalidHint({
@@ -312,430 +308,416 @@ export const StokAwalPage: React.FC = () => {
   ];
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#f4f6f7] p-3 sm:p-4">
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#dde2e6] bg-white">
-        {/* TOP HEADER TOOLBAR */}
-        <div className="no-print flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] px-4 py-3 sm:px-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <div>
-              <h1 className="text-[15px] font-bold text-[#1f2a36] whitespace-nowrap">Stok Awal</h1>
-              <p className="text-[11.5px] text-[#64748b]">
-                Saldo fisik awal periode (tanggal 1)
-              </p>
-            </div>
-
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => moveMonth(-1)}
-                aria-label="Bulan sebelumnya"
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#dde2e6] bg-white text-[#1f2a36] hover:bg-[#f8fafc] cursor-pointer"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="min-w-[136px] text-center text-[13.5px] font-bold text-[#1f2a36] whitespace-nowrap">
-                {monthLabel}
-              </span>
-              <button
-                type="button"
-                onClick={() => moveMonth(1)}
-                aria-label="Bulan berikutnya"
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#dde2e6] bg-white text-[#1f2a36] hover:bg-[#f8fafc] cursor-pointer"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white">
+      {/* TOP HEADER TOOLBAR */}
+      <header className="no-print flex flex-wrap items-center justify-between gap-3 border-b border-[#e5e5df] bg-white px-5 py-3.5 md:px-6">
+        <div className="flex flex-wrap items-center gap-4">
+          <div>
+            <h1 className="font-display text-lg font-semibold text-[#141816] whitespace-nowrap">
+              Stok Awal
+            </h1>
+            <p className="text-xs text-[#7c8580]">Saldo fisik awal periode (tanggal 1)</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* PROGRESS INDICATOR */}
-            <div className="flex items-center gap-2.5 pr-1">
-              <div className="text-right">
-                <div className="font-mono-num text-xs font-semibold text-[#1f2a36] whitespace-nowrap">
-                  {summary.isComplete
-                    ? 'Lengkap'
-                    : `${summary.filledCount} dari ${summary.activeItems.length} terisi`}
-                </div>
-                <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-[#e2e8f0]">
-                  <div
-                    className={`h-full transition-all duration-200 ${
-                      summary.isComplete ? 'bg-[#16a34a]' : 'bg-[#1a9e94]'
-                    }`}
-                    style={{ width: `${summary.progressPct}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {!isViewer && (
-              <>
-                <button
-                  type="button"
-                  disabled={isImporting}
-                  onClick={handleClickImportPrev}
-                  title={`Ambil nilai dari closing terakhir ${prevMonthLabel} (${summary.prevAvailableCount} item tersedia)`}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#dde2e6] bg-white px-3 text-xs font-semibold text-[#334155] hover:bg-[#f8fafc] hover:text-[#1f2a36] whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
-                >
-                  <Download className="h-3.5 w-3.5 text-[#147d75]" />
-                  <span>
-                    {isImporting ? 'Mengambil…' : 'Ambil dari closing bulan lalu'}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isSaving}
-                  onClick={() => void handleSave()}
-                  className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-4 text-xs font-semibold text-white transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50 ${
-                    hasUnsavedAwal
-                      ? 'bg-[#d97706] hover:bg-[#b45309]'
-                      : 'bg-[#1a9e94] hover:bg-[#14857c]'
-                  }`}
-                >
-                  <Save className="h-3.5 w-3.5" />
-                  <span>{isSaving ? 'Menyimpan…' : 'Simpan'}</span>
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* SEARCH, FILTER & WORKFLOW LINKS BAR */}
-        <div className="no-print flex flex-wrap items-center justify-between gap-2.5 border-b border-[#e2e8f0] bg-[#f8fafc] px-4 py-2.5 sm:px-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari item, kategori, satuan…"
-                aria-label="Cari item stok awal"
-                className="h-8 w-56 rounded-lg border border-[#dde2e6] bg-white pr-7 pl-8 text-xs text-[#1f2a36] placeholder:text-[#94a3b8] focus:border-[#1a9e94] focus:outline-none"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  aria-label="Bersihkan pencarian"
-                  className="absolute top-1/2 right-2 -translate-y-1/2 text-[#94a3b8] hover:text-[#475569] cursor-pointer"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-
-            <div
-              className="flex items-center gap-0.5 rounded-lg border border-[#e2e8f0] bg-white p-0.5"
-              role="tablist"
-              aria-label="Filter status stok awal"
-            >
-              {filterTabs.map((tab) => {
-                const active = filterMode === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setFilterMode(tab.id)}
-                    className={`h-7 rounded-md px-2.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                      active
-                        ? 'bg-[#e6f5f3] text-[#147d75]'
-                        : 'text-[#64748b] hover:text-[#1f2a36]'
-                    }`}
-                  >
-                    {tab.label}{' '}
-                    <span className="font-mono-num opacity-75">({tab.count})</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 text-xs">
+          <div className="inline-flex items-center rounded-lg border border-[#e5e5df] bg-[#fafaf8] p-0.5">
             <button
               type="button"
-              onClick={() => navigateTo('in', { ym, day: 1, inputTab: 'closing' })}
-              className="inline-flex items-center gap-1 font-semibold text-[#147d75] hover:underline whitespace-nowrap shrink-0 cursor-pointer"
+              onClick={() => moveMonth(-1)}
+              aria-label="Bulan sebelumnya"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] transition hover:bg-white hover:text-[#141816] cursor-pointer"
             >
-              <span>Input Harian Tgl 1</span>
-              <ArrowRight className="h-3.5 w-3.5" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
-            <span aria-hidden="true" className="text-[#cbd5e1]">
-              ·
+            <span className="min-w-[132px] px-2 text-center text-[13px] font-medium text-[#141816] whitespace-nowrap">
+              {monthLabel}
             </span>
             <button
               type="button"
-              onClick={() => navigateTo('tb', { ym })}
-              className="inline-flex items-center gap-1 font-semibold text-[#475569] hover:text-[#1f2a36] hover:underline whitespace-nowrap shrink-0 cursor-pointer"
+              onClick={() => moveMonth(1)}
+              aria-label="Bulan berikutnya"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] transition hover:bg-white hover:text-[#141816] cursor-pointer"
             >
-              <Table2 className="h-3.5 w-3.5" />
-              <span>Tabel Bulanan</span>
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        {/* FEEDBACK BANNER */}
-        {feedback && (
-          <div className="no-print border-b border-[#e2e8f0] px-4 py-2.5 sm:px-5">
-            <div
-              className={`flex items-center justify-between gap-2 rounded-lg border px-3.5 py-2 text-xs font-medium ${
-                feedback.tone === 'err'
-                  ? 'border-[#fecdd3] bg-[#fff1f2] text-[#9f1239]'
-                  : feedback.tone === 'info'
-                    ? 'border-[#bae6fd] bg-[#f0f9ff] text-[#075985]'
-                    : 'border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                {feedback.tone === 'err' ? (
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                ) : (
-                  <Check className="h-4 w-4 shrink-0" />
-                )}
-                <span>{feedback.text}</span>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-2.5 pr-1">
+            <div className="text-right">
+              <div className="font-mono-num text-[11.5px] font-medium text-[#565e59] whitespace-nowrap">
+                {summary.isComplete
+                  ? 'Lengkap'
+                  : `${summary.filledCount}/${summary.activeItems.length} terisi`}
               </div>
+              <div className="mt-1 h-[4px] w-24 overflow-hidden rounded-full bg-[#efefea]">
+                <div
+                  className={`h-full transition-all duration-200 ${
+                    summary.isComplete ? 'bg-[#15803d]' : 'bg-[#14533c]'
+                  }`}
+                  style={{ width: `${summary.progressPct}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {!isViewer && (
+            <>
               <button
                 type="button"
-                onClick={() => setFeedback(null)}
-                aria-label="Tutup pesan"
-                className="opacity-70 hover:opacity-100 cursor-pointer"
+                disabled={isImporting}
+                onClick={handleClickImportPrev}
+                title={`Ambil nilai dari closing terakhir ${prevMonthLabel} (${summary.prevAvailableCount} item tersedia)`}
+                className="inline-flex h-8.5 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] transition hover:bg-[#f3f3ee] whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5 text-[#14533c]" />
+                <span>{isImporting ? 'Mengambil…' : 'Ambil closing bulan lalu'}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => void handleSave()}
+                className={`inline-flex h-8.5 items-center gap-1.5 rounded-md px-3.5 text-xs font-medium text-white transition whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50 ${
+                  hasUnsavedAwal
+                    ? 'bg-[#b45309] hover:bg-[#92400e]'
+                    : 'bg-[#14533c] hover:bg-[#0f3f2d]'
+                }`}
+              >
+                <Save className="h-3.5 w-3.5" />
+                <span>{isSaving ? 'Menyimpan…' : 'Simpan'}</span>
+              </button>
+            </>
+          )}
+        </div>
+      </header>
+
+      {/* SEARCH, FILTER & WORKFLOW LINKS BAR */}
+      <div className="no-print flex flex-wrap items-center justify-between gap-2.5 border-b border-[#e5e5df] bg-[#fafaf8] px-5 py-2 md:px-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-[#9aa39e]" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari item, kategori, satuan…"
+              aria-label="Cari item stok awal"
+              className="h-8 w-56 rounded-md border border-[#e5e5df] bg-white pr-7 pl-8 text-xs text-[#141816] placeholder:text-[#9aa39e] focus:border-[#14533c] focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label="Bersihkan pencarian"
+                className="absolute top-1/2 right-2 -translate-y-1/2 text-[#9aa39e] hover:text-[#141816] cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* SCROLLABLE CATEGORY & ITEM TILE GRID */}
-        <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
-          {summary.activeItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#cbd5e1] py-16 text-center">
-              <Package className="mb-3 h-9 w-9 text-[#94a3b8]" />
-              <p className="text-sm font-semibold text-[#334155]">
-                Belum ada item aktif di Master Item.
-              </p>
-              <p className="mt-1 text-xs text-[#64748b]">
-                Tambahkan atau aktifkan item terlebih dahulu agar dapat mencatat stok awal.
-              </p>
-              <button
-                type="button"
-                onClick={() => navigateTo('ms')}
-                className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#1a9e94] px-4 text-xs font-semibold text-white hover:bg-[#14857c] cursor-pointer"
-              >
-                <span>Buka Master Item</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ) : filteredGroups.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#cbd5e1] py-14 text-center">
-              <p className="text-sm font-semibold text-[#334155]">
-                Tidak ada item yang cocok dengan filter saat ini.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setFilterMode('all');
-                }}
-                className="mt-3 h-8 rounded-lg border border-[#dde2e6] bg-white px-3.5 text-xs font-semibold text-[#475569] hover:bg-[#f8fafc] cursor-pointer"
-              >
-                Reset filter
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {filteredGroups.map(([cat, items]) => {
-                const catFilled = items.filter((i) => summary.rowsByItemId[i.id]?.isFilled).length;
-                return (
-                  <section key={cat}>
-                    <div className="mb-2.5 flex items-baseline justify-between border-b border-[#e2e8f0] pb-1.5">
-                      <h2 className="text-xs font-bold tracking-wide text-[#334155]">{cat}</h2>
-                      <span className="font-mono-num text-xs font-medium text-[#64748b]">
-                        {catFilled}/{items.length} terisi
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {items.map((item) => {
-                        const row = summary.rowsByItemId[item.id];
-                        if (!row) return null;
-
-                        const cellKey = getCellKey(item.id);
-                        const draftStr = editingDrafts[cellKey];
-                        const displayValue =
-                          draftStr !== undefined
-                            ? draftStr
-                            : row.isFilled && row.awal !== undefined
-                              ? String(row.awal)
-                              : '';
-                        const hasInvalid = invalidHint?.itemId === item.id;
-
-                        return (
-                          <div
-                            key={item.id}
-                            className={`flex flex-col justify-between rounded-xl border p-3 transition-colors ${
-                              hasInvalid
-                                ? 'border-[#fca5a5] bg-[#fff1f2]/60'
-                                : row.isFilled
-                                  ? 'border-[#b7e4df] bg-[#f4fbfa]'
-                                  : 'border-[#e2e8f0] bg-white hover:border-[#cbd5e1]'
-                            }`}
-                          >
-                            {/* ITEM TITLE + STATUS TEXT */}
-                            <div className="mb-2 flex items-start justify-between gap-2">
-                              <span
-                                className="truncate text-[13px] font-semibold text-[#1f2a36]"
-                                title={item.nama}
-                              >
-                                {item.nama}
-                              </span>
-                              <span
-                                className={`shrink-0 text-[11px] font-semibold whitespace-nowrap ${
-                                  row.isFilled ? 'text-[#147d75]' : 'text-[#94a3b8]'
-                                }`}
-                              >
-                                {row.isFilled ? 'Terisi' : 'Kosong'}
-                              </span>
-                            </div>
-
-                            {/* NUMERIC INPUT + UNIT */}
-                            <div className="flex items-center gap-2">
-                              <input
-                                ref={(el) => {
-                                  inputRefs.current[item.id] = el;
-                                }}
-                                type="text"
-                                inputMode="decimal"
-                                autoComplete="off"
-                                disabled={isViewer}
-                                placeholder="Belum diisi"
-                                value={displayValue}
-                                aria-label={`Stok awal ${item.nama}`}
-                                onChange={(e) => handleInputChange(item.id, e.target.value)}
-                                onBlur={() => handleInputBlur(item.id)}
-                                onFocus={(e) => e.currentTarget.select()}
-                                onKeyDown={(e) => handleKeyDown(e, item.id)}
-                                className={`font-mono-num h-9 min-w-0 flex-1 rounded-lg border px-2.5 text-sm font-semibold text-[#1f2a36] placeholder:font-sans placeholder:text-xs placeholder:font-normal placeholder:text-[#94a3b8] focus:outline-none disabled:bg-[#f8fafc] disabled:text-[#64748b] ${
-                                  hasInvalid
-                                    ? 'border-[#dc2626] bg-white focus:border-[#dc2626]'
-                                    : 'border-[#cbd5e1] bg-white focus:border-[#1a9e94]'
-                                }`}
-                              />
-                              <span className="shrink-0 text-xs font-medium text-[#64748b]">
-                                {item.sat || 'pcs'}
-                              </span>
-                            </div>
-
-                            {/* VALIDATION HINT OR PREV MONTH FOOTER */}
-                            {hasInvalid ? (
-                              <div className="mt-2 flex items-center gap-1 text-[11px] font-medium text-[#dc2626]">
-                                <AlertTriangle className="h-3 w-3 shrink-0" />
-                                <span>{invalidHint.text}</span>
-                              </div>
-                            ) : (
-                              <div className="mt-2 flex items-center justify-between gap-2 text-[11.5px]">
-                                <span className="text-[#64748b]">
-                                  Bulan lalu:{' '}
-                                  <strong className="font-mono-num text-[#334155]">
-                                    {hasVal(row.prevClosing) ? formatNum(row.prevClosing) : '–'}
-                                  </strong>
-                                </span>
-                                {!isViewer && row.canCopyPrev && (
-                                  <button
-                                    type="button"
-                                    tabIndex={-1}
-                                    onClick={() => handleCopyPrevSingle(row)}
-                                    title={`Isi sama dengan closing terakhir ${prevMonthLabel} (${formatNum(row.prevClosing)})`}
-                                    className="rounded-md border border-[#b7e4df] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#147d75] hover:bg-[#e6f5f3] whitespace-nowrap shrink-0 cursor-pointer"
-                                  >
-                                    Sama
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* BOTTOM STATUS & KEYBOARD HINT BAR */}
-        <div className="no-print flex flex-wrap items-center justify-between gap-2 border-t border-[#e2e8f0] bg-[#f8fafc] px-4 py-2.5 text-xs sm:px-5">
-          <div className="text-[#64748b]">
-            Isi stok fisik saat toko buka tanggal 1. Tekan{' '}
-            <strong className="text-[#334155]">Enter</strong> untuk item berikutnya,{' '}
-            <strong className="text-[#334155]">Shift+Enter</strong> untuk kembali,{' '}
-            <strong className="text-[#334155]">Ctrl+S</strong> untuk simpan.
-          </div>
-          <div className="font-medium whitespace-nowrap">
-            {hasUnsavedAwal ? (
-              <span className="font-semibold text-[#b45309]">
-                Ada perubahan stok awal belum disimpan
-              </span>
-            ) : (
-              <span className="text-[#15803d]">{sync.text}</span>
             )}
           </div>
+
+          <div
+            className="flex items-center gap-0.5 rounded-md border border-[#e5e5df] bg-white p-0.5"
+            role="tablist"
+            aria-label="Filter status stok awal"
+          >
+            {filterTabs.map((tab) => {
+              const active = filterMode === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setFilterMode(tab.id)}
+                  className={`h-6.5 rounded px-2.5 text-xs font-medium transition whitespace-nowrap shrink-0 cursor-pointer ${
+                    active
+                      ? 'bg-[#141816] text-white'
+                      : 'text-[#565e59] hover:bg-[#f3f3ee] hover:text-[#141816]'
+                  }`}
+                >
+                  {tab.label}{' '}
+                  <span className="font-mono-num opacity-75">({tab.count})</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 text-xs">
+          <button
+            type="button"
+            onClick={() => navigateTo('in', { ym, day: 1, inputTab: 'closing' })}
+            className="inline-flex items-center gap-1 font-medium text-[#14533c] hover:underline whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <span>Input Harian Tgl 1</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+          <span aria-hidden="true" className="text-[#d4d4cc]">
+            ·
+          </span>
+          <button
+            type="button"
+            onClick={() => navigateTo('tb', { ym })}
+            className="inline-flex items-center gap-1 font-medium text-[#565e59] hover:text-[#141816] hover:underline whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <Table2 className="h-3.5 w-3.5" />
+            <span>Tabel Bulanan</span>
+          </button>
         </div>
       </div>
 
-      {/* MODAL KONFIRMASI IMPORT CLOSING BULAN LALU (JIKA SUDAH ADA DATA TERISI) */}
+      {/* FEEDBACK BANNER */}
+      {feedback && (
+        <div
+          className={`no-print flex items-center justify-between gap-2 border-b px-5 py-2 text-xs font-medium md:px-6 ${
+            feedback.tone === 'err'
+              ? 'border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]'
+              : feedback.tone === 'info'
+                ? 'border-[#e5e5df] bg-[#fafaf8] text-[#141816]'
+                : 'border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {feedback.tone === 'err' ? (
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <Check className="h-3.5 w-3.5 shrink-0" />
+            )}
+            <span>{feedback.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            aria-label="Tutup pesan"
+            className="opacity-70 hover:opacity-100 cursor-pointer"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* SCROLLABLE CATEGORY & ITEM TILE GRID */}
+      <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-5 py-5 md:px-6">
+        {summary.activeItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#dcdcd4] py-16 text-center">
+            <Package className="mb-3 h-8 w-8 text-[#9aa39e]" />
+            <p className="font-display text-sm font-semibold text-[#141816]">
+              Belum ada item aktif di Master Item.
+            </p>
+            <p className="mt-1 text-xs text-[#565e59]">
+              Tambahkan atau aktifkan item terlebih dahulu agar dapat mencatat stok awal.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigateTo('ms')}
+              className="mt-4 inline-flex h-8.5 items-center gap-1.5 rounded-md bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+            >
+              <span>Buka Master Item</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : filteredGroups.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#dcdcd4] py-14 text-center">
+            <p className="text-sm font-medium text-[#141816]">
+              Tidak ada item yang cocok dengan filter saat ini.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setFilterMode('all');
+              }}
+              className="mt-3 h-8 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#565e59] hover:bg-[#f3f3ee] cursor-pointer"
+            >
+              Reset filter
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {filteredGroups.map(([cat, items]) => {
+              const catFilled = items.filter((i) => summary.rowsByItemId[i.id]?.isFilled).length;
+              return (
+                <section key={cat}>
+                  <div className="mb-2.5 flex items-baseline justify-between border-b border-[#efefea] pb-1.5">
+                    <h2 className="font-display text-[13.5px] font-semibold text-[#141816]">
+                      {cat}
+                    </h2>
+                    <span className="font-mono-num text-xs text-[#7c8580]">
+                      {catFilled}/{items.length} terisi
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {items.map((item) => {
+                      const row = summary.rowsByItemId[item.id];
+                      if (!row) return null;
+
+                      const cellKey = getCellKey(item.id);
+                      const draftStr = editingDrafts[cellKey];
+                      const displayValue =
+                        draftStr !== undefined
+                          ? draftStr
+                          : row.isFilled && row.awal !== undefined
+                            ? String(row.awal)
+                            : '';
+                      const hasInvalid = invalidHint?.itemId === item.id;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className={`flex flex-col justify-between rounded-lg border p-3 transition-colors ${
+                            hasInvalid
+                              ? 'border-[#fca5a5] bg-[#fff5f5]'
+                              : row.isFilled
+                                ? 'border-[#14533c]/35 bg-[#f4faf7]'
+                                : 'border-[#e5e5df] bg-white hover:border-[#c8c8be]'
+                          }`}
+                        >
+                          <div className="mb-2 flex items-start justify-between gap-2">
+                            <span
+                              className="truncate text-[13px] font-medium text-[#141816]"
+                              title={item.nama}
+                            >
+                              {item.nama}
+                            </span>
+                            <span
+                              className={`shrink-0 text-[11px] font-medium whitespace-nowrap ${
+                                row.isFilled ? 'text-[#14533c]' : 'text-[#9aa39e]'
+                              }`}
+                            >
+                              {row.isFilled ? 'Terisi' : 'Kosong'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <input
+                              ref={(el) => {
+                                inputRefs.current[item.id] = el;
+                              }}
+                              type="text"
+                              inputMode="decimal"
+                              autoComplete="off"
+                              disabled={isViewer}
+                              placeholder="Belum diisi"
+                              value={displayValue}
+                              aria-label={`Stok awal ${item.nama}`}
+                              onChange={(e) => handleInputChange(item.id, e.target.value)}
+                              onBlur={() => handleInputBlur(item.id)}
+                              onFocus={(e) => e.currentTarget.select()}
+                              onKeyDown={(e) => handleKeyDown(e, item.id)}
+                              className={`font-mono-num h-9 min-w-0 flex-1 rounded-md border px-2.5 text-sm font-semibold text-[#141816] placeholder:font-sans placeholder:text-xs placeholder:font-normal placeholder:text-[#9aa39e] focus:outline-none disabled:bg-[#fafaf8] disabled:text-[#7c8580] ${
+                                hasInvalid
+                                  ? 'border-[#dc2626] bg-white focus:border-[#dc2626]'
+                                  : 'border-[#dcdcd4] bg-white focus:border-[#14533c]'
+                              }`}
+                            />
+                            <span className="shrink-0 text-xs text-[#7c8580]">
+                              {item.sat || 'pcs'}
+                            </span>
+                          </div>
+
+                          {hasInvalid ? (
+                            <div className="mt-2 flex items-center gap-1 text-[11px] font-medium text-[#b91c1c]">
+                              <AlertTriangle className="h-3 w-3 shrink-0" />
+                              <span>{invalidHint.text}</span>
+                            </div>
+                          ) : (
+                            <div className="mt-2 flex items-center justify-between gap-2 text-[11.5px]">
+                              <span className="text-[#7c8580]">
+                                Bulan lalu:{' '}
+                                <strong className="font-mono-num font-medium text-[#141816]">
+                                  {hasVal(row.prevClosing) ? formatNum(row.prevClosing) : '–'}
+                                </strong>
+                              </span>
+                              {!isViewer && row.canCopyPrev && (
+                                <button
+                                  type="button"
+                                  tabIndex={-1}
+                                  onClick={() => handleCopyPrevSingle(row)}
+                                  title={`Isi sama dengan closing terakhir ${prevMonthLabel} (${formatNum(row.prevClosing)})`}
+                                  className="rounded border border-[#e5e5df] bg-white px-2 py-0.5 text-[11px] font-medium text-[#14533c] transition hover:border-[#14533c] hover:bg-[#ecf5f1] whitespace-nowrap shrink-0 cursor-pointer"
+                                >
+                                  Sama
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* BOTTOM STATUS & KEYBOARD HINT BAR */}
+      <div className="no-print flex flex-wrap items-center justify-between gap-2 border-t border-[#e5e5df] bg-[#fafaf8] px-5 py-2 text-xs md:px-6">
+        <div className="text-[#7c8580]">
+          Isi stok fisik saat toko buka tanggal 1 ·{' '}
+          <strong className="font-medium text-[#565e59]">Enter</strong> berikutnya ·{' '}
+          <strong className="font-medium text-[#565e59]">Shift+Enter</strong> kembali ·{' '}
+          <strong className="font-medium text-[#565e59]">Ctrl+S</strong> simpan
+        </div>
+        <div className="font-medium whitespace-nowrap">
+          {hasUnsavedAwal ? (
+            <span className="text-[#b45309]">Ada perubahan stok awal belum disimpan</span>
+          ) : (
+            <span className="text-[#15803d]">{sync.text}</span>
+          )}
+        </div>
+      </div>
+
+      {/* MODAL KONFIRMASI IMPORT CLOSING BULAN LALU */}
       {showImportModal && (
         <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#111614]/45 p-4 backdrop-blur-[2px]"
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowImportModal(false);
           }}
         >
-          <div className="w-full max-w-[440px] overflow-hidden rounded-2xl border border-[#dde2e6] bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[#e2e8f0] px-5 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e6f5f3] text-[#147d75]">
-                  <Download className="h-4 w-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-[#1f2a36]">
-                    Ambil dari Closing {prevMonthLabel}
-                  </h3>
-                  <p className="text-xs text-[#64748b]">
-                    {summary.prevAvailableCount} item memiliki data closing bulan lalu
-                  </p>
-                </div>
+          <div className="w-full max-w-[440px] overflow-hidden rounded-xl border border-[#e5e5df] bg-white shadow-[0_20px_50px_rgba(17,22,20,0.16)]">
+            <div className="flex items-start justify-between border-b border-[#e5e5df] px-5 py-4">
+              <div>
+                <h3 className="font-display text-base font-semibold text-[#141816]">
+                  Ambil dari Closing {prevMonthLabel}
+                </h3>
+                <p className="mt-0.5 text-xs text-[#565e59]">
+                  {summary.prevAvailableCount} item memiliki data closing bulan lalu
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowImportModal(false)}
                 aria-label="Tutup modal"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-[#64748b] hover:bg-slate-100 cursor-pointer"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-[#7c8580] hover:bg-[#f3f3ee] hover:text-[#141816] cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="space-y-3 px-5 py-4 text-sm text-[#334155]">
+            <div className="space-y-3 px-5 py-4 text-[13px] text-[#565e59]">
               <p className="leading-relaxed">
-                Bulan <strong>{monthLabel}</strong> sudah memiliki{' '}
-                <strong>{summary.filledCount} item</strong> stok awal terisi. Pilih cara pengisian
-                dari closing terakhir <strong>{prevMonthLabel}</strong>:
+                Bulan <strong className="text-[#141816]">{monthLabel}</strong> sudah memiliki{' '}
+                <strong className="text-[#141816]">{summary.filledCount} item</strong> stok awal
+                terisi. Pilih cara pengisian dari closing terakhir{' '}
+                <strong className="text-[#141816]">{prevMonthLabel}</strong>:
               </p>
-              <p className="rounded-lg border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-xs text-[#64748b]">
+              <p className="rounded-lg border border-[#e5e5df] bg-[#fafaf8] px-3 py-2 text-xs text-[#565e59]">
                 Histori bulan lalu tidak akan diubah, dan item yang belum memiliki closing di bulan
                 lalu akan tetap dibiarkan kosong (tidak otomatis diisi 0).
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#e2e8f0] bg-[#f8fafc] px-5 py-3.5">
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#e5e5df] bg-[#fafaf8] px-5 py-3">
               <button
                 type="button"
                 onClick={() => setShowImportModal(false)}
-                className="h-9 rounded-lg border border-[#dde2e6] bg-white px-3.5 text-xs font-semibold text-[#475569] hover:bg-slate-50 cursor-pointer"
+                className="h-8.5 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#565e59] hover:bg-[#f3f3ee] cursor-pointer"
               >
                 Batal
               </button>
@@ -743,7 +725,7 @@ export const StokAwalPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => void executeImportPrevMonth('empty_only')}
-                  className="h-9 rounded-lg border border-[#1a9e94] bg-white px-3.5 text-xs font-semibold text-[#147d75] hover:bg-[#f0fdfa] cursor-pointer"
+                  className="h-8.5 rounded-md border border-[#14533c] bg-white px-3.5 text-xs font-medium text-[#14533c] hover:bg-[#ecf5f1] cursor-pointer"
                 >
                   Hanya isi item kosong
                 </button>
@@ -751,7 +733,7 @@ export const StokAwalPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => void executeImportPrevMonth('all')}
-                className="h-9 rounded-lg bg-[#1a9e94] px-4 text-xs font-semibold text-white hover:bg-[#14857c] cursor-pointer"
+                className="h-8.5 rounded-md bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
               >
                 Timpa semua ({summary.prevAvailableCount} item)
               </button>

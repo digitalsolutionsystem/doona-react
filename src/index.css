@@ -1,24 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  --sidebar-w: 240px;
-  --sidebar-cw: 76px;
-  --sidebar-bg: #111111;
-  --sidebar-border: #2c2c2c;
-  --sidebar-text: #b5b5b5;
-  --sidebar-hover: #262626;
-  --accent: #1a9e94;
-  --accent-dark: #12857c;
-  --outline: #6b7f99;
-  --ow: 2.5px;
-  --bg: #f4f6f7;
+  --sidebar-w: 236px;
+  --sidebar-cw: 68px;
+  --sidebar-bg: #111614;
+  --sidebar-border: #202824;
+  --sidebar-text: #96a09b;
+  --sidebar-hover: rgba(255, 255, 255, 0.06);
+  --accent: #14533c;
+  --accent-dark: #0f3f2d;
+  --accent-soft: #ecf5f1;
+  --bg: #f7f7f4;
   --surface: #ffffff;
-  --border: #e2e8f0;
-  --charcoal: #dde2e6;
-  --ink: #1f2a36;
-  --muted: #64748b;
-  --radius: 12px;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --surface-subtle: #f3f3ee;
+  --border: #e5e5df;
+  --border-subtle: #efefea;
+  --ink: #141816;
+  --ink-secondary: #565e59;
+  --muted: #7c8580;
+  --radius: 10px;
 }
 
 @layer base {
@@ -29,13 +29,19 @@
   }
 
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
     background: var(--bg);
     color: var(--ink);
     min-height: 100vh;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+}
+
+.font-display {
+  font-family: 'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif;
+  letter-spacing: -0.02em;
 }
 
 .font-mono-num {
@@ -43,7 +49,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Signature DOONA GOLF Sidebar + Sliding Concave Active Indicator */
+/* Full-bleed Architectural Clubhouse Sidebar */
 .dg-sidebar {
   width: var(--sidebar-w);
   position: fixed;
@@ -51,10 +57,11 @@
   left: 0;
   bottom: 0;
   z-index: 100;
-  padding: 12px 0 12px 12px;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
   display: flex;
   flex-direction: column;
-  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1), transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .dg-sidebar.collapsed {
@@ -63,29 +70,15 @@
 
 .dg-sidebar-inner {
   position: relative;
-  border-radius: 14px 0 0 14px;
-  background: var(--sidebar-bg);
   display: flex;
   flex-direction: column;
   flex: 1;
   overflow: hidden;
 }
 
-.dg-sidebar-inner::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 0;
-  width: var(--ow);
-  background: var(--outline);
-  pointer-events: none;
-}
-
 .dg-nav-section {
   position: relative;
-  z-index: 1;
-  padding: 10px 0 28px;
+  padding: 12px 0 20px;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
@@ -95,81 +88,35 @@
   width: 0;
 }
 
-.dg-sidebar.collapsed .dg-nav-section {
-  padding-top: 24px;
-}
-
-.dg-nav-ind {
-  position: absolute;
-  top: 0;
-  left: 8px;
-  right: 0;
-  height: 38px;
-  background: var(--surface);
-  border-radius: 18px 0 0 18px;
-  box-shadow: 0 0 0 var(--ow) var(--outline);
-  transition: transform 0.34s cubic-bezier(0.4, 0, 0.2, 1), height 0.34s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.dg-nav-ind.no-anim {
-  transition: none;
-}
-
-.dg-nav-ind::before,
-.dg-nav-ind::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  width: 20px;
-  height: 20px;
-  background: transparent;
-}
-
-.dg-nav-ind::before {
-  top: -20px;
-  border-bottom-right-radius: 20px;
-  border-right: var(--ow) solid var(--outline);
-  border-bottom: var(--ow) solid var(--outline);
-  box-shadow: 10px 10px 0 10px var(--surface);
-}
-
-.dg-nav-ind::after {
-  bottom: -20px;
-  border-top-right-radius: 20px;
-  border-right: var(--ow) solid var(--outline);
-  border-top: var(--ow) solid var(--outline);
-  box-shadow: 10px -10px 0 10px var(--surface);
-}
-
+/* Main Workspace Canvas */
 .dg-content {
-  margin: 12px 14px 12px var(--sidebar-w);
+  margin-left: var(--sidebar-w);
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - 24px);
-  max-height: calc(100dvh - 24px);
+  height: 100dvh;
+  max-height: 100dvh;
   overflow: hidden;
-  background: var(--surface);
-  border: var(--ow) solid var(--outline);
-  border-left: none;
-  border-radius: 0 16px 16px 0;
-  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--bg);
+  transition: margin-left 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .dg-content.sidebar-collapsed {
   margin-left: var(--sidebar-cw);
 }
 
-/* Custom thin scrollbars */
+/* Refined thin scrollbars */
 .dg-scroll::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 .dg-scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 10px;
+  background: #d4d4cc;
+  border-radius: 999px;
+}
+
+.dg-scroll::-webkit-scrollbar-thumb:hover {
+  background: #b8b8ae;
 }
 
 .dg-scroll::-webkit-scrollbar-track {
@@ -179,7 +126,6 @@
 @media (max-width: 900px) {
   .dg-sidebar {
     width: var(--sidebar-w) !important;
-    padding: 0;
     transform: translateX(-100%);
   }
 
@@ -187,33 +133,12 @@
     transform: translateX(0);
   }
 
-  .dg-sidebar-inner {
-    border-radius: 0 16px 16px 0;
-  }
-
-  .dg-sidebar-inner::after {
-    display: none;
-  }
-
-  .dg-nav-ind {
-    border-radius: 12px;
-    right: 8px;
-    box-shadow: none;
-  }
-
-  .dg-nav-ind::before,
-  .dg-nav-ind::after {
-    display: none;
-  }
-
   .dg-content,
   .dg-content.sidebar-collapsed {
-    margin: 0;
+    margin-left: 0;
     height: auto;
     min-height: 100dvh;
     max-height: none;
-    border: none;
-    border-radius: 0;
     overflow: visible;
   }
 }
@@ -230,11 +155,10 @@
 
   .dg-content {
     margin: 0 !important;
-    border: none !important;
-    border-radius: 0 !important;
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
+    background: #ffffff !important;
   }
 
   .dg-content main,

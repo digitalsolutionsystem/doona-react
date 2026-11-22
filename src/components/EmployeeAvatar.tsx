@@ -29,7 +29,7 @@ export const EmployeeAvatar: React.FC<EmployeeAvatarProps> = ({
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#d6e9e7] bg-[#e6f5f3] font-bold text-[#147d75] select-none ${SIZE_CLASSES[size]}`}
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#d6e4dd] bg-[#ecf5f1] font-semibold text-[#14533c] select-none ${SIZE_CLASSES[size]}`}
       aria-hidden="true"
     >
       {src && !imgFailed ? (

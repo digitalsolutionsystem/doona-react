@@ -22,7 +22,7 @@ const AppShell: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#f4f6f7] text-[#1f2a36]">
+    <div className="min-h-screen bg-[#f7f7f4] text-[#141816]">
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
@@ -60,7 +60,7 @@ const AppShell: React.FC = () => {
       </div>
 
       {isViewer && (
-        <div className="no-print fixed right-4 bottom-3.5 z-60 rounded-full bg-[#0f172a] px-3.5 py-1.5 text-xs font-bold text-white shadow-md pointer-events-none">
+        <div className="no-print pointer-events-none fixed right-5 bottom-4 z-60 rounded-md border border-[#202824] bg-[#111614] px-3 py-1.5 text-xs font-medium text-[#e5e7e6]">
           Mode hanya-baca (Viewer)
         </div>
       )}

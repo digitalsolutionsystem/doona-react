@@ -69,27 +69,23 @@ export const InputHarianPage: React.FC = () => {
   const progressPct = totalItems > 0 ? Math.round((filledCount / totalItems) * 100) : 0;
   const isSelectedToday = ym === curYm && day === nowDay;
 
-  // Reset local typing buffers when date or mode changes so values always match S
   useEffect(() => {
     setEditingDrafts({});
     setNegativeAttemptId(null);
   }, [ym, day, inputTab]);
 
-  // Clear transient save toast automatically
   useEffect(() => {
     if (!saveFeedback) return;
     const t = window.setTimeout(() => setSaveFeedback(null), 3500);
     return () => window.clearTimeout(t);
   }, [saveFeedback]);
 
-  // Auto-clear negative input rejection hint after reverting value
   useEffect(() => {
     if (!negativeAttemptId) return;
     const t = window.setTimeout(() => setNegativeAttemptId(null), 3000);
     return () => window.clearTimeout(t);
   }, [negativeAttemptId]);
 
-  // Filter grouped items by search & quick filter while preserving category order
   const filteredGroups = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return summary.groupedItems
@@ -130,7 +126,6 @@ export const InputHarianPage: React.FC = () => {
     [filteredGroups]
   );
 
-  // Focus specific requested item or auto-focus first empty input on desktop fine pointer (exact legacy qFocus)
   useEffect(() => {
     if (inputTab === 'pemakaian' || isViewer) return;
 
@@ -166,7 +161,6 @@ export const InputHarianPage: React.FC = () => {
         el.select();
       }
     }
-    // Only auto-focus when navigating date/tab, not on every keystroke
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ym, day, inputTab]);
 
@@ -186,7 +180,6 @@ export const InputHarianPage: React.FC = () => {
     }
   }, [isViewer, saveInputHarianNow]);
 
-  // Ctrl+S / Cmd+S shortcut to save immediately
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -204,7 +197,6 @@ export const InputHarianPage: React.FC = () => {
     if (isViewer) return;
     const key = getCellKey(itemId);
 
-    // Allow digits, decimal dot/comma, and transient minus sign so we can catch & explain negative rejection
     const sanitized = raw.replace(/[^0-9.,-]/g, '');
     setEditingDrafts((prev) => ({ ...prev, [key]: sanitized }));
 
@@ -218,8 +210,6 @@ export const InputHarianPage: React.FC = () => {
       setNegativeAttemptId(null);
     }
 
-    // Keep incomplete decimal like "12." in local draft until user finishes typing,
-    // while still committing valid numeric value or empty state to global Single Source of Truth.
     if (parsed.empty) {
       setStockCell(ym, activeField, day, itemId, '');
     } else if (parsed.valid && parsed.value !== undefined) {
@@ -234,7 +224,6 @@ export const InputHarianPage: React.FC = () => {
     if (raw !== undefined) {
       const parsed = parseStockInput(raw);
       if (parsed.negative) {
-        // Legacy put() rejects negative values and leaves stored value clean
         setNegativeAttemptId(itemId);
       } else if (parsed.empty) {
         setStockCell(ym, activeField, day, itemId, '');
@@ -309,49 +298,51 @@ export const InputHarianPage: React.FC = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white">
-      {/* ── TOP OPERATIONAL HEADER (DATE NAV + MODE TABS + PROGRESS + SAVE) ── */}
-      <div className="shrink-0 border-b border-[#dde2e6] bg-white px-4 py-3 sm:px-5">
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Date navigation bar */}
-          <div className="flex flex-1 flex-wrap items-center gap-1.5 min-w-[260px]">
-            <button
-              type="button"
-              onClick={() => moveDay(-1)}
-              aria-label="Hari sebelumnya"
-              title="Hari sebelumnya"
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#d6dde3] bg-white text-[#334155] transition hover:bg-slate-50 cursor-pointer"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <input
-              type="date"
-              value={formatDateKey(ym, day)}
-              onChange={(e) => selectDateStr(e.target.value)}
-              aria-label="Pilih tanggal input harian"
-              className="font-mono-num h-9 rounded-lg border border-[#d6dde3] bg-white px-2.5 text-[13px] font-semibold text-[#1f2a36] outline-none focus:border-[#1a9e94] focus:ring-2 focus:ring-[#1a9e94]/20"
-            />
-            <button
-              type="button"
-              onClick={() => moveDay(1)}
-              aria-label="Hari berikutnya"
-              title="Hari berikutnya"
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#d6dde3] bg-white text-[#334155] transition hover:bg-slate-50 cursor-pointer"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+      {/* TOP OPERATIONAL HEADER */}
+      <div className="shrink-0 border-b border-[#e5e5df] bg-white px-5 py-3 md:px-6">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Date navigation */}
+          <div className="flex min-w-[260px] flex-1 flex-wrap items-center gap-1.5">
+            <div className="inline-flex items-center rounded-lg border border-[#e5e5df] bg-[#fafaf8] p-0.5">
+              <button
+                type="button"
+                onClick={() => moveDay(-1)}
+                aria-label="Hari sebelumnya"
+                title="Hari sebelumnya"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] transition hover:bg-white hover:text-[#141816] cursor-pointer"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <input
+                type="date"
+                value={formatDateKey(ym, day)}
+                onChange={(e) => selectDateStr(e.target.value)}
+                aria-label="Pilih tanggal input harian"
+                className="font-mono-num h-7 bg-transparent px-2 text-[12.5px] font-medium text-[#141816] outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => moveDay(1)}
+                aria-label="Hari berikutnya"
+                title="Hari berikutnya"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] transition hover:bg-white hover:text-[#141816] cursor-pointer"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
             <button
               type="button"
               onClick={goToday}
               disabled={isSelectedToday}
-              className={`h-9 rounded-lg border px-3 text-xs font-semibold whitespace-nowrap shrink-0 transition ${
+              className={`h-8.5 rounded-md border px-2.5 text-xs font-medium whitespace-nowrap shrink-0 transition ${
                 isSelectedToday
-                  ? 'border-[#e2e8f0] bg-slate-50 text-[#94a3b8] cursor-default'
-                  : 'border-[#d6dde3] bg-white text-[#1f2a36] hover:bg-slate-50 cursor-pointer'
+                  ? 'border-[#efefea] bg-[#fafaf8] text-[#9aa39e] cursor-default'
+                  : 'border-[#e5e5df] bg-white text-[#141816] hover:bg-[#f3f3ee] cursor-pointer'
               }`}
             >
               Hari ini
             </button>
-            <span className="ml-1 text-[13px] font-semibold text-[#1f2a36] whitespace-nowrap">
+            <span className="ml-1 text-[13px] font-medium text-[#141816] whitespace-nowrap">
               {getFullDateLabel(ym, day)}
             </span>
           </div>
@@ -360,7 +351,7 @@ export const InputHarianPage: React.FC = () => {
           <div
             role="tablist"
             aria-label="Mode input harian"
-            className="flex items-center gap-0.5 rounded-[9px] bg-[#edf1f4] p-1 shrink-0"
+            className="flex shrink-0 items-center gap-0.5 rounded-lg border border-[#e5e5df] bg-[#f7f7f4] p-0.5"
           >
             {tabOptions.map((t) => {
               const active = inputTab === t.id;
@@ -371,10 +362,10 @@ export const InputHarianPage: React.FC = () => {
                   aria-selected={active}
                   type="button"
                   onClick={() => setInputTab(t.id)}
-                  className={`flex h-8 items-center gap-1.5 rounded-[7px] px-3 text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
+                  className={`flex h-7.5 items-center gap-1.5 rounded-md px-3 text-xs font-medium whitespace-nowrap shrink-0 transition cursor-pointer ${
                     active
-                      ? 'bg-[#1a9e94] text-white shadow-xs'
-                      : 'text-[#475569] hover:bg-white hover:text-[#1f2a36]'
+                      ? 'bg-[#14533c] text-white'
+                      : 'text-[#565e59] hover:bg-white hover:text-[#141816]'
                   }`}
                 >
                   {t.icon}
@@ -384,16 +375,16 @@ export const InputHarianPage: React.FC = () => {
             })}
           </div>
 
-          {/* Progress indicator */}
+          {/* Progress */}
           {inputTab !== 'pemakaian' && (
-            <div className="flex min-w-[104px] flex-col gap-1 shrink-0">
-              <span className="text-[11.5px] font-semibold text-[#64748b] whitespace-nowrap">
-                {isComplete ? 'Lengkap' : `${filledCount} dari ${totalItems} terisi`}
+            <div className="flex min-w-[104px] shrink-0 flex-col gap-1">
+              <span className="font-mono-num text-[11px] font-medium text-[#565e59] whitespace-nowrap">
+                {isComplete ? 'Lengkap' : `${filledCount}/${totalItems} terisi`}
               </span>
-              <div className="h-[5px] w-full overflow-hidden rounded-full bg-[#e2e8f0]">
+              <div className="h-[4px] w-full overflow-hidden rounded-full bg-[#efefea]">
                 <div
                   className={`h-full rounded-full transition-all duration-200 ${
-                    isComplete ? 'bg-[#22a06b]' : 'bg-[#1a9e94]'
+                    isComplete ? 'bg-[#15803d]' : 'bg-[#14533c]'
                   }`}
                   style={{ width: `${progressPct}%` }}
                 />
@@ -401,11 +392,11 @@ export const InputHarianPage: React.FC = () => {
             </div>
           )}
 
-          {/* Save Button or Viewer Lock */}
+          {/* Save */}
           {isViewer ? (
-            <div className="flex h-9 items-center gap-1.5 rounded-lg border border-[#d6dde3] bg-slate-50 px-3 text-xs font-semibold text-[#475569] whitespace-nowrap shrink-0">
-              <Lock className="h-3.5 w-3.5 text-[#64748b]" />
-              <span>Mode Hanya-Baca</span>
+            <div className="flex h-8.5 shrink-0 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-[#fafaf8] px-3 text-xs font-medium text-[#565e59] whitespace-nowrap">
+              <Lock className="h-3.5 w-3.5 text-[#7c8580]" />
+              <span>Hanya Baca</span>
             </div>
           ) : (
             <button
@@ -413,8 +404,10 @@ export const InputHarianPage: React.FC = () => {
               type="button"
               onClick={handleSave}
               disabled={sync.isSyncing}
-              className={`flex h-9 items-center gap-1.5 rounded-lg bg-[#1a9e94] px-4 text-xs font-semibold text-white whitespace-nowrap shrink-0 transition hover:bg-[#147a72] disabled:opacity-65 cursor-pointer ${
-                hasUnsavedIn ? 'ring-3 ring-[#1a9e94]/30' : ''
+              className={`flex h-8.5 shrink-0 items-center gap-1.5 rounded-md px-3.5 text-xs font-medium text-white whitespace-nowrap transition disabled:opacity-60 cursor-pointer ${
+                hasUnsavedIn
+                  ? 'bg-[#b45309] hover:bg-[#92400e]'
+                  : 'bg-[#14533c] hover:bg-[#0f3f2d]'
               }`}
             >
               {sync.isSyncing ? (
@@ -428,64 +421,62 @@ export const InputHarianPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── SUMMARY METRICS & FILTER UTILITY BAR ── */}
-      <div className="shrink-0 border-b border-[#e5eaee] bg-[#f8fafc] px-4 py-2 sm:px-5">
+      {/* SUMMARY METRICS & FILTER UTILITY BAR */}
+      <div className="shrink-0 border-b border-[#e5e5df] bg-[#fafaf8] px-5 py-2 md:px-6">
         <div className="flex flex-wrap items-center justify-between gap-2.5">
-          {/* Compact real-time daily stats (Single Source of Truth) */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#475569]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#565e59]">
             <span>
-              Barang Datang:{' '}
-              <strong className="font-mono-num text-[#1f2a36]">
+              Barang Datang{' '}
+              <strong className="font-mono-num font-semibold text-[#141816]">
                 {formatNum(summary.totalDatangDay)}
               </strong>{' '}
-              <span className="text-[#64748b]">({summary.filledDatangCount} item)</span>
+              <span className="text-[#7c8580]">({summary.filledDatangCount} item)</span>
             </span>
-            <span aria-hidden="true" className="text-[#cbd5e1]">
+            <span aria-hidden="true" className="text-[#d4d4cc]">
               ·
             </span>
             <span>
-              Total Pemakaian:{' '}
-              <strong className="font-mono-num text-[#1a9e94]">
+              Pemakaian{' '}
+              <strong className="font-mono-num font-semibold text-[#14533c]">
                 {summary.hasAnyPemakaian ? formatNum(summary.totalPemakaianDay) : '–'}
               </strong>
             </span>
-            <span aria-hidden="true" className="text-[#cbd5e1]">
+            <span aria-hidden="true" className="text-[#d4d4cc]">
               ·
             </span>
             <span>
-              Closing Terisi:{' '}
-              <strong className="font-mono-num text-[#1f2a36]">
+              Closing{' '}
+              <strong className="font-mono-num font-semibold text-[#141816]">
                 {summary.filledClosingCount}/{totalItems}
               </strong>
             </span>
             {hasUnsavedIn && !isViewer && (
               <>
-                <span aria-hidden="true" className="text-[#cbd5e1]">
+                <span aria-hidden="true" className="text-[#d4d4cc]">
                   ·
                 </span>
-                <span className="font-semibold text-[#b45309]">Belum disimpan ke database</span>
+                <span className="font-medium text-[#b45309]">Belum disimpan</span>
               </>
             )}
           </div>
 
-          {/* Search, status filter & cross-module shortcuts */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-[#9aa39e]" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari item / kategori…"
+                placeholder="Cari item atau kategori…"
                 aria-label="Cari item atau kategori"
-                className="h-8 w-44 rounded-lg border border-[#d6dde3] bg-white pr-7 pl-8 text-xs text-[#1f2a36] outline-none placeholder:text-[#94a3b8] focus:border-[#1a9e94]"
+                className="h-8 w-44 rounded-md border border-[#e5e5df] bg-white pr-7 pl-8 text-xs text-[#141816] outline-none placeholder:text-[#9aa39e] focus:border-[#14533c]"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
                   aria-label="Hapus pencarian"
-                  className="absolute top-1/2 right-2 -translate-y-1/2 text-[#94a3b8] hover:text-[#334155] cursor-pointer"
+                  className="absolute top-1/2 right-2 -translate-y-1/2 text-[#9aa39e] hover:text-[#141816] cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -493,7 +484,7 @@ export const InputHarianPage: React.FC = () => {
             </div>
 
             {inputTab !== 'pemakaian' && (
-              <div className="flex items-center gap-0.5 rounded-lg border border-[#d6dde3] bg-white p-0.5">
+              <div className="flex items-center gap-0.5 rounded-md border border-[#e5e5df] bg-white p-0.5">
                 {(
                   [
                     { id: 'all', label: 'Semua' },
@@ -509,10 +500,10 @@ export const InputHarianPage: React.FC = () => {
                     key={f.id}
                     type="button"
                     onClick={() => setTileFilter(f.id)}
-                    className={`h-7 rounded-md px-2.5 text-[11.5px] font-semibold whitespace-nowrap transition cursor-pointer ${
+                    className={`h-6.5 rounded px-2.5 text-[11.5px] font-medium whitespace-nowrap transition cursor-pointer ${
                       tileFilter === f.id
-                        ? 'bg-[#1f2a36] text-white'
-                        : 'text-[#64748b] hover:bg-slate-100 hover:text-[#1f2a36]'
+                        ? 'bg-[#141816] text-white'
+                        : 'text-[#565e59] hover:bg-[#f3f3ee] hover:text-[#141816]'
                     }`}
                   >
                     {f.label}
@@ -524,19 +515,19 @@ export const InputHarianPage: React.FC = () => {
             <button
               type="button"
               onClick={() => navigateTo('tb')}
-              className="hidden sm:inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#d6dde3] bg-white px-2.5 text-[11.5px] font-semibold text-[#334155] whitespace-nowrap hover:bg-slate-50 cursor-pointer"
+              className="hidden h-8 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-2.5 text-xs font-medium text-[#141816] whitespace-nowrap transition hover:bg-[#f3f3ee] sm:inline-flex cursor-pointer"
             >
-              <Table2 className="h-3.5 w-3.5 text-[#1a9e94]" />
+              <Table2 className="h-3.5 w-3.5 text-[#14533c]" />
               <span>Tabel Bulanan</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── CONTEXTUAL WARNINGS & SAVE FEEDBACK ── */}
+      {/* CONTEXTUAL WARNINGS & FEEDBACK */}
       {saveFeedback && (
         <div
-          className={`shrink-0 flex items-center justify-between gap-3 border-b px-4 py-2 text-xs font-semibold sm:px-5 ${
+          className={`shrink-0 flex items-center justify-between gap-3 border-b px-5 py-2 text-xs font-medium md:px-6 ${
             saveFeedback.type === 'ok'
               ? 'border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]'
               : 'border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]'
@@ -555,18 +546,18 @@ export const InputHarianPage: React.FC = () => {
       )}
 
       {inputTab === 'closing' && summary.missingPrevClosing && (
-        <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-b border-[#fde68a] bg-[#fff6df] px-4 py-2 text-xs text-[#8a5d00] sm:px-5">
+        <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-b border-[#f3d692] bg-[#fffcf2] px-5 py-2 text-xs text-[#92400e] md:px-6">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-[#d4900f]" />
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[#b45309]" />
             <span>
-              Closing tanggal <strong>{day - 1}</strong> belum diisi, jadi stok siap jual dan
+              Closing tanggal <strong>{day - 1}</strong> belum diisi, sehingga stok siap jual dan
               pemakaian tanggal {day} belum bisa dihitung.
             </span>
           </div>
           <button
             type="button"
             onClick={() => navigateTo('in', { day: day - 1, inputTab: 'closing' })}
-            className="inline-flex h-7 items-center gap-1 rounded-md border border-[#e0a030] bg-white px-2.5 text-[11.5px] font-semibold text-[#8a5d00] whitespace-nowrap hover:bg-[#fef3c7] cursor-pointer"
+            className="inline-flex h-7 items-center gap-1 rounded-md border border-[#e5c06d] bg-white px-2.5 text-[11.5px] font-medium text-[#92400e] whitespace-nowrap hover:bg-[#fef6dc] cursor-pointer"
           >
             <span>Isi Closing Tgl {day - 1}</span>
             <ArrowRight className="h-3 w-3" />
@@ -575,9 +566,9 @@ export const InputHarianPage: React.FC = () => {
       )}
 
       {summary.missingAwalDay1 && (
-        <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-b border-[#fde68a] bg-[#fff6df] px-4 py-2 text-xs text-[#8a5d00] sm:px-5">
+        <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-b border-[#f3d692] bg-[#fffcf2] px-5 py-2 text-xs text-[#92400e] md:px-6">
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 shrink-0 text-[#d4900f]" />
+            <Calendar className="h-3.5 w-3.5 shrink-0 text-[#b45309]" />
             <span>
               Stok awal bulan ini (tanggal 1) belum diisi. Lengkapi Stok Awal agar stok siap jual
               akurat.
@@ -586,7 +577,7 @@ export const InputHarianPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigateTo('aw')}
-            className="inline-flex h-7 items-center gap-1 rounded-md border border-[#e0a030] bg-white px-2.5 text-[11.5px] font-semibold text-[#8a5d00] whitespace-nowrap hover:bg-[#fef3c7] cursor-pointer"
+            className="inline-flex h-7 items-center gap-1 rounded-md border border-[#e5c06d] bg-white px-2.5 text-[11.5px] font-medium text-[#92400e] whitespace-nowrap hover:bg-[#fef6dc] cursor-pointer"
           >
             <span>Buka Stok Awal</span>
             <ArrowRight className="h-3 w-3" />
@@ -595,9 +586,9 @@ export const InputHarianPage: React.FC = () => {
       )}
 
       {summary.negativeUsageRows.length > 0 && (
-        <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-b border-[#fecaca] bg-[#fff1f0] px-4 py-2 text-xs text-[#991b1b] sm:px-5">
-          <div className="flex items-center gap-2 min-w-0">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-[#dc2626]" />
+        <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-b border-[#fecaca] bg-[#fef2f2] px-5 py-2 text-xs text-[#991b1b] md:px-6">
+          <div className="flex min-w-0 items-center gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[#b91c1c]" />
             <span className="truncate">
               <strong>{summary.negativeUsageRows.length} pemakaian bernilai negatif</strong>{' '}
               (closing melebihi stok siap jual):{' '}
@@ -608,18 +599,18 @@ export const InputHarianPage: React.FC = () => {
               {summary.negativeUsageRows.length > 4 ? ', dll.' : ''}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
               onClick={() => jumpToItemInput(summary.negativeUsageRows[0].item.id, 'closing')}
-              className="h-7 rounded-md border border-[#fca5a5] bg-white px-2.5 text-[11.5px] font-semibold text-[#991b1b] whitespace-nowrap hover:bg-[#fee2e2] cursor-pointer"
+              className="h-7 rounded-md border border-[#fca5a5] bg-white px-2.5 text-[11.5px] font-medium text-[#991b1b] whitespace-nowrap hover:bg-[#fee2e2] cursor-pointer"
             >
               Periksa Closing
             </button>
             <button
               type="button"
               onClick={() => jumpToItemInput(summary.negativeUsageRows[0].item.id, 'datang')}
-              className="h-7 rounded-md border border-[#fca5a5] bg-white px-2.5 text-[11.5px] font-semibold text-[#991b1b] whitespace-nowrap hover:bg-[#fee2e2] cursor-pointer"
+              className="h-7 rounded-md border border-[#fca5a5] bg-white px-2.5 text-[11.5px] font-medium text-[#991b1b] whitespace-nowrap hover:bg-[#fee2e2] cursor-pointer"
             >
               Cek Barang Datang
             </button>
@@ -629,7 +620,7 @@ export const InputHarianPage: React.FC = () => {
 
       {inputTab === 'closing' &&
         (summary.zeroClosingRows.length > 0 || summary.lowClosingRows.length > 0) && (
-          <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-b border-[#fed7aa] bg-[#fff7ed] px-4 py-1.5 text-xs text-[#9a3412] sm:px-5">
+          <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-b border-[#f3d692] bg-[#fffaf0] px-5 py-1.5 text-xs text-[#92400e] md:px-6">
             <span className="truncate">
               Stok kritis tgl {day}:{' '}
               {summary.zeroClosingRows.length > 0 && (
@@ -652,7 +643,7 @@ export const InputHarianPage: React.FC = () => {
                 const target = summary.zeroClosingRows[0] || summary.lowClosingRows[0];
                 if (target) jumpToItemInput(target.item.id, 'datang');
               }}
-              className="inline-flex h-6 items-center gap-1 text-[11.5px] font-semibold text-[#9a3412] underline underline-offset-2 whitespace-nowrap hover:text-[#7c2d12] cursor-pointer"
+              className="inline-flex h-6 items-center gap-1 text-[11.5px] font-medium text-[#92400e] underline underline-offset-2 whitespace-nowrap hover:text-[#78350f] cursor-pointer"
             >
               <span>Input Barang Datang</span>
               <ArrowRight className="h-3 w-3" />
@@ -660,49 +651,48 @@ export const InputHarianPage: React.FC = () => {
           </div>
         )}
 
-      {/* ── MAIN BODY ── */}
-      <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-4 py-2 sm:px-5">
+      {/* MAIN BODY */}
+      <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-5 py-3 md:px-6">
         {totalItems === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-sm font-semibold text-[#1f2a36]">
+            <p className="font-display text-sm font-semibold text-[#141816]">
               Belum ada item aktif di Master Item.
             </p>
-            <p className="mt-1 text-xs text-[#64748b]">
+            <p className="mt-1 text-xs text-[#565e59]">
               Tambahkan atau aktifkan barang di Master Item agar muncul di form Input Harian.
             </p>
             <button
               type="button"
               onClick={() => navigateTo('ms')}
-              className="mt-4 h-9 rounded-lg bg-[#1a9e94] px-4 text-xs font-semibold text-white hover:bg-[#147a72] cursor-pointer"
+              className="mt-4 h-9 rounded-md bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
             >
               Buka Master Item
             </button>
           </div>
         ) : inputTab === 'pemakaian' ? (
-          /* ── READ-ONLY DAILY MOVEMENT & USAGE TABLE ── */
           <div className="py-2">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h2 className="text-sm font-bold text-[#1f2a36]">
+                <h2 className="font-display text-[15px] font-semibold text-[#141816]">
                   Rekap Pergerakan &amp; Pemakaian — {getFullDateLabel(ym, day)}
                 </h2>
-                <p className="text-xs text-[#64748b]">
+                <p className="mt-0.5 text-xs text-[#7c8580]">
                   Dihitung otomatis dari {day === 1 ? 'Stok Awal' : `Closing Tgl ${day - 1}`},
-                  Barang Datang, dan Closing Fisik. Klik baris untuk langsung mengedit input.
+                  Barang Datang, dan Closing Fisik.
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setInputTab('datang')}
-                  className="h-8 rounded-lg border border-[#d6dde3] bg-white px-3 text-xs font-semibold text-[#1f2a36] hover:bg-slate-50 cursor-pointer"
+                  className="h-8 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
                 >
                   Edit Barang Datang
                 </button>
                 <button
                   type="button"
                   onClick={() => setInputTab('closing')}
-                  className="h-8 rounded-lg bg-[#1a9e94] px-3 text-xs font-semibold text-white hover:bg-[#147a72] cursor-pointer"
+                  className="h-8 rounded-md bg-[#14533c] px-3 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
                 >
                   Edit Closing
                 </button>
@@ -710,15 +700,15 @@ export const InputHarianPage: React.FC = () => {
             </div>
 
             {filteredGroups.length === 0 ? (
-              <div className="rounded-xl border border-[#e2e8f0] py-12 text-center text-xs text-[#64748b]">
+              <div className="rounded-xl border border-[#e5e5df] py-12 text-center text-xs text-[#565e59]">
                 Tidak ada item yang cocok dengan pencarian &ldquo;{searchQuery}&rdquo;.
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-[#dde2e6]">
+              <div className="overflow-x-auto rounded-xl border border-[#e5e5df]">
                 <table className="w-full border-collapse text-left text-[13px]">
                   <thead>
-                    <tr className="border-b border-[#dde2e6] bg-[#f8fafc] text-[11.5px] font-semibold text-[#475569]">
-                      <th className="px-3.5 py-2.5">Item</th>
+                    <tr className="border-b border-[#e5e5df] bg-[#fafaf8] text-[11.5px] font-medium text-[#565e59]">
+                      <th className="px-4 py-2.5">Item</th>
                       <th className="px-3 py-2.5">Satuan</th>
                       <th className="px-3 py-2.5 text-right">
                         {day === 1 ? 'Stok Awal' : `Closing Tgl ${day - 1}`}
@@ -727,20 +717,20 @@ export const InputHarianPage: React.FC = () => {
                       <th className="px-3 py-2.5 text-right">Stok Siap Jual</th>
                       <th className="px-3 py-2.5 text-right">Closing Fisik</th>
                       <th className="px-3 py-2.5 text-right">Pemakaian</th>
-                      <th className="px-3 py-2.5 text-right">Aksi</th>
+                      <th className="px-4 py-2.5 text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredGroups.map(([cat, items]) => (
                       <React.Fragment key={cat}>
-                        <tr className="border-y border-[#e2e8f0] bg-[#f1f5f9]/70">
+                        <tr className="border-y border-[#e5e5df] bg-[#f4f4ef]">
                           <td
                             colSpan={8}
-                            className="px-3.5 py-1.5 text-xs font-bold text-[#334155]"
+                            className="px-4 py-1.5 text-xs font-semibold text-[#141816]"
                           >
                             {cat}{' '}
-                            <span className="font-normal text-[#64748b]">
-                              ({items.length} item)
+                            <span className="font-normal text-[#7c8580]">
+                              · {items.length} item
                             </span>
                           </td>
                         </tr>
@@ -750,80 +740,80 @@ export const InputHarianPage: React.FC = () => {
                           return (
                             <tr
                               key={item.id}
-                              className={`border-b border-[#edf1f4] transition hover:bg-[#f8fafc] ${
-                                row.isNegativeUsage ? 'bg-[#fff1f0]/60' : ''
+                              className={`border-b border-[#efefea] transition hover:bg-[#fafaf8] ${
+                                row.isNegativeUsage ? 'bg-[#fff5f5]' : ''
                               }`}
                             >
-                              <td className="px-3.5 py-2">
-                                <div className="font-semibold text-[#1f2a36]">{item.nama}</div>
-                                <div className="text-[11px] text-[#64748b]">
-                                  ID: {item.id}
-                                  {item.min > 0 ? ` · Min ${formatNum(item.min)}` : ''}
+                              <td className="px-4 py-2.5">
+                                <div className="font-medium text-[#141816]">{item.nama}</div>
+                                <div className="font-mono-num text-[11px] text-[#7c8580]">
+                                  {item.id}
+                                  {item.min > 0 ? ` · min ${formatNum(item.min)}` : ''}
                                 </div>
                               </td>
-                              <td className="px-3 py-2 text-xs text-[#64748b]">
+                              <td className="px-3 py-2.5 text-xs text-[#7c8580]">
                                 {item.sat || 'pcs'}
                               </td>
-                              <td className="font-mono-num px-3 py-2 text-right text-[#475569]">
+                              <td className="font-mono-num px-3 py-2.5 text-right text-[#565e59]">
                                 {hasVal(row.prevBase) ? formatNum(row.prevBase) : '–'}
                               </td>
-                              <td className="font-mono-num px-3 py-2 text-right text-[#1f2a36]">
+                              <td className="font-mono-num px-3 py-2.5 text-right text-[#141816]">
                                 {hasVal(row.datang) ? formatNum(row.datang) : '–'}
                               </td>
-                              <td className="font-mono-num px-3 py-2 text-right font-semibold text-[#1f2a36]">
+                              <td className="font-mono-num px-3 py-2.5 text-right font-semibold text-[#141816]">
                                 {row.totalSiapJual !== null ? formatNum(row.totalSiapJual) : '–'}
                               </td>
-                              <td className="font-mono-num px-3 py-2 text-right font-semibold">
+                              <td className="font-mono-num px-3 py-2.5 text-right font-semibold">
                                 {hasVal(row.closing) ? (
                                   <span
                                     className={
                                       row.isZeroClosing
-                                        ? 'text-[#dc2626]'
+                                        ? 'text-[#b91c1c]'
                                         : row.isLowClosing
-                                          ? 'text-[#d97706]'
-                                          : 'text-[#1f2a36]'
+                                          ? 'text-[#b45309]'
+                                          : 'text-[#141816]'
                                     }
                                   >
                                     {formatNum(row.closing)}
                                     {row.isZeroClosing
-                                      ? ' (Kosong)'
+                                      ? ' · Kosong'
                                       : row.isLowClosing
-                                        ? ' (Menipis)'
+                                        ? ' · Menipis'
                                         : ''}
                                   </span>
                                 ) : (
-                                  <span className="text-[#94a3b8]">Belum</span>
+                                  <span className="font-normal text-[#9aa39e]">Belum</span>
                                 )}
                               </td>
-                              <td className="font-mono-num px-3 py-2 text-right font-bold">
+                              <td className="font-mono-num px-3 py-2.5 text-right font-semibold">
                                 {row.pemakaian !== null ? (
                                   <span
                                     className={
-                                      row.isNegativeUsage ? 'text-[#dc2626]' : 'text-[#1a9e94]'
+                                      row.isNegativeUsage ? 'text-[#b91c1c]' : 'text-[#14533c]'
                                     }
                                   >
                                     {formatNum(row.pemakaian)}
-                                    {row.isNegativeUsage ? ' (Melebihi)' : ''}
+                                    {row.isNegativeUsage ? ' · Melebihi' : ''}
                                   </span>
                                 ) : (
-                                  <span className="font-normal text-[#94a3b8]">–</span>
+                                  <span className="font-normal text-[#9aa39e]">–</span>
                                 )}
                               </td>
-                              <td className="px-3 py-2 text-right whitespace-nowrap">
+                              <td className="px-4 py-2.5 text-right whitespace-nowrap">
                                 <button
                                   type="button"
                                   onClick={() => jumpToItemInput(item.id, 'closing')}
-                                  className="mr-1.5 text-xs font-semibold text-[#1a9e94] hover:underline cursor-pointer"
+                                  className="mr-1.5 text-xs font-medium text-[#14533c] hover:underline cursor-pointer"
                                 >
                                   Closing
                                 </button>
-                                <span aria-hidden="true" className="text-[#cbd5e1]">
-                                  /
+                                <span aria-hidden="true" className="text-[#d4d4cc]">
+                                  ·
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => jumpToItemInput(item.id, 'datang')}
-                                  className="ml-1.5 text-xs font-semibold text-[#475569] hover:text-[#1f2a36] hover:underline cursor-pointer"
+                                  className="ml-1.5 text-xs font-medium text-[#565e59] hover:text-[#141816] hover:underline cursor-pointer"
                                 >
                                   Datang
                                 </button>
@@ -835,18 +825,18 @@ export const InputHarianPage: React.FC = () => {
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] font-bold text-[#1f2a36]">
-                      <td colSpan={3} className="px-3.5 py-2.5 text-xs">
+                    <tr className="border-t border-[#d8d8d0] bg-[#fafaf8] font-semibold text-[#141816]">
+                      <td colSpan={3} className="px-4 py-2.5 text-xs">
                         Total Hari Ini ({summary.rows.length} item aktif)
                       </td>
                       <td className="font-mono-num px-3 py-2.5 text-right">
                         {formatNum(summary.totalDatangDay)}
                       </td>
-                      <td className="px-3 py-2.5 text-right text-[#94a3b8]">–</td>
+                      <td className="px-3 py-2.5 text-right text-[#9aa39e]">–</td>
                       <td className="font-mono-num px-3 py-2.5 text-right">
                         {summary.filledClosingCount > 0 ? formatNum(summary.totalClosingDay) : '–'}
                       </td>
-                      <td className="font-mono-num px-3 py-2.5 text-right text-[#1a9e94]">
+                      <td className="font-mono-num px-3 py-2.5 text-right text-[#14533c]">
                         {summary.hasAnyPemakaian ? formatNum(summary.totalPemakaianDay) : '–'}
                       </td>
                       <td />
@@ -858,26 +848,23 @@ export const InputHarianPage: React.FC = () => {
           </div>
         ) : filteredGroups.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-center">
-            <p className="text-sm font-semibold text-[#1f2a36]">
-              Tidak ada item pada filter ini.
-            </p>
+            <p className="text-sm font-medium text-[#141816]">Tidak ada item pada filter ini.</p>
             <button
               type="button"
               onClick={() => {
                 setSearchQuery('');
                 setTileFilter('all');
               }}
-              className="mt-3 h-8 rounded-lg border border-[#d6dde3] bg-white px-3.5 text-xs font-semibold text-[#1f2a36] hover:bg-slate-50 cursor-pointer"
+              className="mt-3 h-8 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
             >
               Tampilkan Semua Item
             </button>
           </div>
         ) : (
-          /* ── FAST CARD ENTRY GRID PER CATEGORY (EXACT LEGACY DOONA GOLF WORKFLOW) ── */
-          <div className="divide-y divide-[#cbd5e1]">
+          /* FAST ENTRY GRID PER CATEGORY */
+          <div className="divide-y divide-[#e5e5df]">
             {filteredGroups.map(([cat, items]) => {
-              const allCatItems =
-                summary.groupedItems.find(([c]) => c === cat)?.[1] || items;
+              const allCatItems = summary.groupedItems.find(([c]) => c === cat)?.[1] || items;
               const catFilled = allCatItems.filter((it) => {
                 const r = summary.rowsByItemId[it.id];
                 return hasVal(activeField === 'c' ? r?.closing : r?.datang);
@@ -886,16 +873,18 @@ export const InputHarianPage: React.FC = () => {
               return (
                 <section
                   key={cat}
-                  className="grid grid-cols-1 gap-2.5 py-3 md:grid-cols-[112px_1fr] md:gap-3"
+                  className="grid grid-cols-1 gap-3 py-3.5 md:grid-cols-[124px_1fr] md:gap-4"
                 >
                   <div className="flex items-baseline gap-2 md:block md:pt-1">
-                    <h2 className="text-[13px] font-bold text-[#1f2a36]">{cat}</h2>
-                    <span className="font-mono-num text-xs text-[#64748b]">
+                    <h2 className="font-display text-[13.5px] font-semibold text-[#141816]">
+                      {cat}
+                    </h2>
+                    <span className="font-mono-num text-xs text-[#7c8580]">
                       {catFilled}/{allCatItems.length}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                     {items.map((item) => {
                       const row = summary.rowsByItemId[item.id];
                       const storedVal = activeField === 'c' ? row?.closing : row?.datang;
@@ -910,34 +899,34 @@ export const InputHarianPage: React.FC = () => {
                             ? String(storedVal)
                             : '';
 
-                      let tileTone = 'border-[#94a3b8] bg-white hover:border-[#64748b]';
+                      let tileTone = 'border-[#dcdcd4] bg-white hover:border-[#b5b5aa]';
                       if (isNeg || isNegAttempt) {
-                        tileTone = 'border-[#e5534b] bg-[#fff1f0]';
+                        tileTone = 'border-[#dc2626] bg-[#fff5f5]';
                       } else if (isFilled) {
-                        tileTone = 'border-[#1a9e94] bg-[#f1fbfa]';
+                        tileTone = 'border-[#14533c]/45 bg-[#f4faf7]';
                       }
 
                       return (
                         <label
                           key={item.id}
-                          className={`block rounded-[10px] border-2 px-2.5 pt-2 pb-1.5 transition focus-within:border-[#1a9e94] focus-within:bg-white focus-within:ring-4 focus-within:ring-[#1a9e94]/20 ${tileTone} ${
+                          className={`block rounded-lg border px-3 pt-2 pb-2 transition focus-within:border-[#14533c] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#14533c]/15 ${tileTone} ${
                             isViewer ? 'cursor-default opacity-95' : 'cursor-text'
                           }`}
                         >
                           <div className="flex items-center justify-between gap-1">
                             <span
                               title={`${item.nama} (${item.kat} · ID: ${item.id})`}
-                              className="block min-w-0 truncate text-[12.5px] font-semibold text-[#1f2a36]"
+                              className="block min-w-0 truncate text-[12.5px] font-medium text-[#141816]"
                             >
                               {item.nama}
                             </span>
                             {inputTab === 'closing' && row?.isZeroClosing && (
-                              <span className="shrink-0 text-[10.5px] font-bold text-[#dc2626]">
+                              <span className="shrink-0 text-[10.5px] font-semibold text-[#b91c1c]">
                                 Kosong
                               </span>
                             )}
                             {inputTab === 'closing' && row?.isLowClosing && (
-                              <span className="shrink-0 text-[10.5px] font-bold text-[#d97706]">
+                              <span className="shrink-0 text-[10.5px] font-semibold text-[#b45309]">
                                 Min {formatNum(item.min)}
                               </span>
                             )}
@@ -961,19 +950,19 @@ export const InputHarianPage: React.FC = () => {
                               onBlur={() => handleInputBlur(item.id)}
                               onFocus={(e) => e.currentTarget.select()}
                               onKeyDown={(e) => handleInputKeyDown(e, item.id)}
-                              className="font-mono-num block w-full min-w-0 flex-1 border-none bg-transparent pt-0.5 text-[20px] leading-[1.35] font-semibold text-[#1f2a36] outline-none placeholder:font-normal placeholder:text-[#c3ccd4] disabled:cursor-default disabled:text-[#334155]"
+                              className="font-mono-num block w-full min-w-0 flex-1 border-none bg-transparent pt-0.5 text-[20px] leading-[1.35] font-semibold text-[#141816] outline-none placeholder:font-normal placeholder:text-[#c7ccc9] disabled:cursor-default disabled:text-[#565e59]"
                             />
-                            <span className="shrink-0 text-[11px] font-medium text-[#64748b]">
+                            <span className="shrink-0 text-[11px] text-[#7c8580]">
                               {item.sat || 'pcs'}
                             </span>
                           </div>
 
                           {isNegAttempt ? (
-                            <div className="mt-0.5 text-[10.5px] font-semibold text-[#dc2626]">
+                            <div className="mt-0.5 text-[10.5px] font-semibold text-[#b91c1c]">
                               Tidak boleh negatif
                             </div>
                           ) : (
-                            <div className="mt-0.5 flex min-h-[20px] items-center justify-between gap-1 text-[11.5px] whitespace-nowrap text-[#64748b]">
+                            <div className="mt-0.5 flex min-h-[20px] items-center justify-between gap-1 text-[11px] whitespace-nowrap text-[#7c8580]">
                               {inputTab === 'closing' ? (
                                 <>
                                   <span
@@ -985,7 +974,7 @@ export const InputHarianPage: React.FC = () => {
                                     className="truncate"
                                   >
                                     Stok{' '}
-                                    <strong className="font-mono-num font-semibold text-[#1f2a36]">
+                                    <strong className="font-mono-num font-semibold text-[#141816]">
                                       {row?.totalSiapJual !== null
                                         ? formatNum(row.totalSiapJual)
                                         : '–'}
@@ -1000,7 +989,7 @@ export const InputHarianPage: React.FC = () => {
                                           : `Pemakaian ${formatNum(row.pemakaian)} ${item.sat || 'pcs'}`
                                       }
                                       className={`font-mono-num shrink-0 font-semibold ${
-                                        row.isNegativeUsage ? 'text-[#c93f38]' : 'text-[#1a9e94]'
+                                        row.isNegativeUsage ? 'text-[#b91c1c]' : 'text-[#14533c]'
                                       }`}
                                     >
                                       {row.isNegativeUsage
@@ -1016,7 +1005,7 @@ export const InputHarianPage: React.FC = () => {
                                         handleSameAsStock(row);
                                       }}
                                       title="Isi sama dengan stok siap jual (tidak ada pemakaian)"
-                                      className="shrink-0 rounded-[5px] bg-[#eef3f6] px-2 py-0.5 text-[11px] font-semibold text-[#475569] transition hover:bg-[#d2efeb] hover:text-[#1a9e94] cursor-pointer"
+                                      className="shrink-0 rounded border border-[#e5e5df] bg-[#fafaf8] px-1.5 py-0.5 text-[10.5px] font-medium text-[#565e59] transition hover:border-[#14533c] hover:bg-[#ecf5f1] hover:text-[#14533c] cursor-pointer"
                                     >
                                       Sama
                                     </button>
@@ -1027,17 +1016,17 @@ export const InputHarianPage: React.FC = () => {
                                   {hasVal(row?.prevBase) ? (
                                     <span className="truncate">
                                       {day === 1 ? 'Awal' : 'Kemarin'}{' '}
-                                      <strong className="font-mono-num font-semibold text-[#1f2a36]">
+                                      <strong className="font-mono-num font-semibold text-[#141816]">
                                         {formatNum(row.prevBase)}
                                       </strong>
                                     </span>
                                   ) : (
-                                    <span className="text-[#94a3b8]">
+                                    <span className="text-[#9aa39e]">
                                       {day === 1 ? 'Awal –' : 'Kemarin –'}
                                     </span>
                                   )}
                                   {hasVal(row?.datang) && row?.totalSiapJual !== null && (
-                                    <span className="font-mono-num shrink-0 font-semibold text-[#1a9e94]">
+                                    <span className="font-mono-num shrink-0 font-semibold text-[#14533c]">
                                       Siap {formatNum(row.totalSiapJual)}
                                     </span>
                                   )}
@@ -1056,16 +1045,16 @@ export const InputHarianPage: React.FC = () => {
         )}
       </div>
 
-      {/* ── BOTTOM KEYBOARD HINT & SYNC FOOTER ── */}
-      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-t border-[#dde2e6] bg-white px-4 py-2 text-xs text-[#64748b] sm:px-5">
+      {/* BOTTOM KEYBOARD HINT & SYNC FOOTER */}
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-t border-[#e5e5df] bg-[#fafaf8] px-5 py-2 text-xs text-[#7c8580] md:px-6">
         <span>
-          Tekan <strong className="text-[#334155]">Enter</strong> /{' '}
-          <strong className="text-[#334155]">↓</strong> untuk item berikutnya,{' '}
-          <strong className="text-[#334155]">Shift+Enter</strong> /{' '}
-          <strong className="text-[#334155]">↑</strong> untuk kembali,{' '}
-          <strong className="text-[#334155]">Ctrl+S</strong> untuk simpan.
+          <strong className="font-medium text-[#565e59]">Enter</strong> /{' '}
+          <strong className="font-medium text-[#565e59]">↓</strong> berikutnya ·{' '}
+          <strong className="font-medium text-[#565e59]">Shift+Enter</strong> /{' '}
+          <strong className="font-medium text-[#565e59]">↑</strong> kembali ·{' '}
+          <strong className="font-medium text-[#565e59]">Ctrl+S</strong> simpan
         </span>
-        <span className={`font-medium ${sync.isError ? 'text-[#dc2626]' : 'text-[#64748b]'}`}>
+        <span className={`font-medium ${sync.isError ? 'text-[#b91c1c]' : 'text-[#7c8580]'}`}>
           {sync.text}
           {sync.lastSyncAt ? ` · ${sync.lastSyncAt}` : ''}
         </span>
