@@ -1,0 +1,6 @@
+{
+  "name": "DOONA GOLF – Stok Harian",
+  "description": "Sistem manajemen operasional DOONA GOLF: stok harian, rekap bulanan, omset, pengeluaran, absensi & penggajian karyawan, laporan, dan sinkronisasi Google Sheets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
