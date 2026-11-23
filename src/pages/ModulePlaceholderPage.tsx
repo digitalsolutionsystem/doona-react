@@ -1,4 +1,5 @@
 import React from 'react';
+import { PageHeader } from '../components/PageHeader';
 import { ArrowLeft, Layers } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getFullDateLabel, getMonthLabel } from '../domain/dateUtils';
@@ -6,8 +7,8 @@ import type { MenuId } from '../types/app';
 
 const MENU_DESCRIPTIONS: Record<Exclude<MenuId, 'home' | 'db'>, { title: string; summary: string }> = {
   in: {
-    title: 'Input Harian',
-    summary: 'Pencatatan Closing Fisik dan Barang Datang harian per kategori item.',
+    title: 'Stok & Input',
+    summary: 'Pencatatan Stok Awal bulanan, Closing Fisik, Barang Datang, dan Pemakaian harian.',
   },
   tb: {
     title: 'Tabel Bulanan',
@@ -37,6 +38,10 @@ const MENU_DESCRIPTIONS: Record<Exclude<MenuId, 'home' | 'db'>, { title: string;
     title: 'Laporan & Ekspor',
     summary: 'Pratinjau teks laporan closing WhatsApp/Telegram, editor teks, format item, ekspor CSV, dan backup JSON.',
   },
+  pg: {
+    title: 'Pengaturan',
+    summary: 'Pengaturan tampilan aplikasi dan pemilihan warna aksen dengan palet lengkap.',
+  },
 };
 
 export const ModulePlaceholderPage: React.FC<{ menu: Exclude<MenuId, 'home' | 'db'> }> = ({
@@ -56,8 +61,7 @@ export const ModulePlaceholderPage: React.FC<{ menu: Exclude<MenuId, 'home' | 'd
 
   return (
     <div className="dg-page">
-      <div className="dg-sticky-header no-print px-4 pt-3 pb-1 md:px-6">
-        <header className="flex items-center justify-between gap-3 rounded-2xl bg-white px-5 py-3 shadow-[0_6px_22px_rgba(13,37,48,0.045)]">
+      <PageHeader>
           <div className="flex items-center gap-2.5">
             <Layers className="h-4 w-4 text-[#2eb86b]" />
             <h2 className="font-display text-[16px] font-bold text-[#13222b]">{meta.title}</h2>
@@ -70,8 +74,7 @@ export const ModulePlaceholderPage: React.FC<{ menu: Exclude<MenuId, 'home' | 'd
             <ArrowLeft className="h-3.5 w-3.5" />
             <span>Kembali ke Beranda</span>
           </button>
-        </header>
-      </div>
+      </PageHeader>
 
       <div className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-md rounded-2xl bg-white p-6 text-center shadow-[0_6px_24px_rgba(13,37,48,0.045)]">

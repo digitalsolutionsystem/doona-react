@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { PageHeader } from '../components/PageHeader';
 import {
   AlertTriangle,
   Check,
@@ -58,7 +59,11 @@ function formatIsoTime(iso: string | null): string {
   }
 }
 
-export const DatabasePage: React.FC = () => {
+interface DatabasePageProps {
+  headerLeft?: React.ReactNode;
+}
+
+export const DatabasePage: React.FC<DatabasePageProps> = ({ headerLeft }) => {
   const {
     state,
     apiUrl,
@@ -223,21 +228,31 @@ export const DatabasePage: React.FC = () => {
 
   return (
     <div className="dg-page">
-      {/* STICKY FLOATING HEADER */}
-      <div className="dg-sticky-header no-print px-4 pt-3 pb-1 md:px-6">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] md:px-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-display text-[17px] font-bold tracking-[-0.015em] text-[#13222b]">
-            Koneksi Database
-          </h1>
-          <span
-            className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold ${connectionBadge.tone}`}
-          >
-            {connectionBadge.title}
-          </span>
-        </div>
+      {/* PERSISTENT STATIONARY HEADER */}
+      <PageHeader>
+        {headerLeft ? (
+          headerLeft
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="font-display text-[17px] font-bold tracking-[-0.015em] text-[#13222b]">
+              Koneksi Database
+            </h1>
+            <span
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold ${connectionBadge.tone}`}
+            >
+              {connectionBadge.title}
+            </span>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
+          {headerLeft && (
+            <span
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold ${connectionBadge.tone}`}
+            >
+              {connectionBadge.title}
+            </span>
+          )}
           {dbMode === 'cloud_unauth' && (
             <button
               type="button"
@@ -262,8 +277,7 @@ export const DatabasePage: React.FC = () => {
             </button>
           )}
         </div>
-        </header>
-      </div>
+      </PageHeader>
 
       {/* Scrollable Body */}
       <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">

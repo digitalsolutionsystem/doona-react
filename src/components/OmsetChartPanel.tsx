@@ -26,9 +26,9 @@ export const OMSET_CHART_METRIC_KEYS: OmsetChartMetricKey[] = [
 ];
 
 const SERIES_COLOR_MAP: Record<string, string> = {
-  tl: '#2eb86b',
+  tl: 'var(--accent)',
   qr: '#0d2530',
-  tn: '#2eb86b',
+  tn: 'var(--accent)',
   qn: '#0d2530',
   kx: '#f59e0b',
   bx: '#ef4444',
@@ -428,7 +428,7 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                           width={sx}
                           height={ph + 8}
                           rx={4}
-                          fill="#e6f7ee"
+                          fill="var(--accent-soft)"
                         />
                       )}
                       {barNodes}
@@ -439,8 +439,12 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                           textAnchor="middle"
                           fontSize={11}
                           fontWeight={700}
-                          fill={chart.maxDay && x.d === chart.maxDay.d ? '#15803d' : '#dc2626'}
-                          stroke="#ffffff"
+                          fill={
+                            chart.maxDay && x.d === chart.maxDay.d
+                              ? 'var(--accent-dark)'
+                              : '#dc2626'
+                          }
+                          stroke="#fbfaf2"
                           strokeWidth={3.5}
                           paintOrder="stroke"
                           style={{ fontFamily: "'JetBrains Mono', monospace" }}
@@ -491,7 +495,7 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                   fontSize={11}
                   fontWeight={700}
                   fill="#0d2530"
-                  stroke="#ffffff"
+                  stroke="#fbfaf2"
                   strokeWidth={3.5}
                   paintOrder="stroke"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}

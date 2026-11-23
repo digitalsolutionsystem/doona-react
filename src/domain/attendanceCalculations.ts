@@ -7,6 +7,8 @@ import type {
   AttendanceStatus,
   Employee,
   PayrollCycle,
+  ScheduledShiftId,
+  ShiftScheduleConfig,
 } from '../types/app';
 import { formatRp, getDaysInMonth, getMonth, getYear } from './dateUtils';
 
@@ -26,19 +28,100 @@ export interface ShiftPreset {
   end: string;
 }
 
-export const SHIFT_PRESETS: Record<AttendanceShift, ShiftPreset> = {
-  Pagi: { id: 'Pagi', label: 'Shift Pagi (08:00–16:00)', shortLabel: 'Pagi · 08:00–16:00', start: '08:00', end: '16:00' },
-  Siang: { id: 'Siang', label: 'Shift Siang (14:00–22:00)', shortLabel: 'Siang · 14:00–22:00', start: '14:00', end: '22:00' },
-  Full: { id: 'Full', label: 'Full Day (08:00–17:00)', shortLabel: 'Full · 08:00–17:00', start: '08:00', end: '17:00' },
-  Fleksibel: { id: 'Fleksibel', label: 'Fleksibel', shortLabel: 'Fleksibel', start: '', end: '' },
+export const SHIFT_STORAGE_KEY = 'dg_shift_schedule_v1';
+
+export const DEFAULT_SHIFT_CONFIG: ShiftScheduleConfig = {
+  Full: { start: '08:00', end: '17:00' },
+  Pagi: { start: '08:00', end: '16:00' },
+  Siang: { start: '14:00', end: '22:00' },
 };
 
-export const SHIFT_LIST: ShiftPreset[] = [
-  SHIFT_PRESETS.Full,
-  SHIFT_PRESETS.Pagi,
-  SHIFT_PRESETS.Siang,
-  SHIFT_PRESETS.Fleksibel,
-];
+function sanitizeHHMM(val: unknown, fallback: string): string {
+  if (typeof val !== 'string') return fallback;
+  const m = val.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return fallback;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return fallback;
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
+export function readStoredShiftConfig(): Partial<ShiftScheduleConfig> | null {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return null;
+    const raw = window.localStorage.getItem(SHIFT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? (parsed as Partial<ShiftScheduleConfig>) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeStoredShiftConfig(cfg: ShiftScheduleConfig): void {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    window.localStorage.setItem(SHIFT_STORAGE_KEY, JSON.stringify(cfg));
+  } catch {
+    // Ignore storage quota / privacy errors
+  }
+}
+
+export function getShiftScheduleConfig(state?: AppData | null): ShiftScheduleConfig {
+  const src = state?.shiftConfig || readStoredShiftConfig() || {};
+  const resolveOne = (id: ScheduledShiftId) => ({
+    start: sanitizeHHMM(src[id]?.start, DEFAULT_SHIFT_CONFIG[id].start),
+    end: sanitizeHHMM(src[id]?.end, DEFAULT_SHIFT_CONFIG[id].end),
+  });
+  return {
+    Full: resolveOne('Full'),
+    Pagi: resolveOne('Pagi'),
+    Siang: resolveOne('Siang'),
+  };
+}
+
+export function getShiftPresets(state?: AppData | null): Record<AttendanceShift, ShiftPreset> {
+  const cfg = getShiftScheduleConfig(state);
+  return {
+    Pagi: {
+      id: 'Pagi',
+      label: `Shift Pagi (${cfg.Pagi.start}–${cfg.Pagi.end})`,
+      shortLabel: `Pagi · ${cfg.Pagi.start}–${cfg.Pagi.end}`,
+      start: cfg.Pagi.start,
+      end: cfg.Pagi.end,
+    },
+    Siang: {
+      id: 'Siang',
+      label: `Shift Siang (${cfg.Siang.start}–${cfg.Siang.end})`,
+      shortLabel: `Siang · ${cfg.Siang.start}–${cfg.Siang.end}`,
+      start: cfg.Siang.start,
+      end: cfg.Siang.end,
+    },
+    Full: {
+      id: 'Full',
+      label: `Full Day (${cfg.Full.start}–${cfg.Full.end})`,
+      shortLabel: `Full · ${cfg.Full.start}–${cfg.Full.end}`,
+      start: cfg.Full.start,
+      end: cfg.Full.end,
+    },
+    Fleksibel: {
+      id: 'Fleksibel',
+      label: 'Fleksibel',
+      shortLabel: 'Fleksibel',
+      start: '',
+      end: '',
+    },
+  };
+}
+
+export function getShiftList(state?: AppData | null): ShiftPreset[] {
+  const presets = getShiftPresets(state);
+  return [presets.Full, presets.Pagi, presets.Siang, presets.Fleksibel];
+}
+
+export const SHIFT_PRESETS: Record<AttendanceShift, ShiftPreset> = getShiftPresets(null);
+
+export const SHIFT_LIST: ShiftPreset[] = getShiftList(null);
 
 export function getCurrentTimeHHMM(now: Date = new Date()): string {
   const hh = String(now.getHours()).padStart(2, '0');
@@ -56,8 +139,12 @@ export function parseTimeToMinutes(hhmm?: string): number | null {
   return h * 60 + min;
 }
 
-export function calcLateMinutes(shift?: AttendanceShift, checkIn?: string): number {
-  const preset = SHIFT_PRESETS[shift || 'Full'];
+export function calcLateMinutes(
+  shift?: AttendanceShift,
+  checkIn?: string,
+  state?: AppData | null
+): number {
+  const preset = getShiftPresets(state)[shift || 'Full'];
   if (!preset || !preset.start) return 0;
   const startMins = parseTimeToMinutes(preset.start);
   const inMins = parseTimeToMinutes(checkIn);
@@ -507,7 +594,7 @@ export function getDailyAttendanceViewModel(
     const isSaved = Boolean(committed) && !draft;
     const shift: AttendanceShift = effective?.shift || emp.shiftDefault || 'Full';
     const lateMinutes =
-      effective?.status === 'Hadir' ? calcLateMinutes(shift, effective.checkIn) : 0;
+      effective?.status === 'Hadir' ? calcLateMinutes(shift, effective.checkIn, state) : 0;
     const workMinutes =
       effective?.status === 'Hadir'
         ? calcWorkDurationMinutes(effective.checkIn, effective.checkOut)

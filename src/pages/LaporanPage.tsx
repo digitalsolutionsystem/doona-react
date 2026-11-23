@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { PageHeader } from '../components/PageHeader';
 import {
   AlertTriangle,
   ArchiveRestore,
@@ -395,9 +396,8 @@ export const LaporanPage: React.FC = () => {
         onChange={handleSelectRestoreFile}
       />
 
-      {/* Sticky Floating Top Bar */}
-      <div className="dg-sticky-header no-print px-4 pt-3 pb-1 md:px-6">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] md:px-5">
+      {/* Persistent Stationary Top Bar */}
+      <PageHeader>
         <div>
           <h1 className="font-display text-base font-bold text-[#13222b]">
             Laporan &amp; Ekspor
@@ -438,8 +438,7 @@ export const LaporanPage: React.FC = () => {
             );
           })}
         </div>
-        </header>
-      </div>
+      </PageHeader>
 
       {/* Floating Toast / Feedback Banner */}
       {toast && (

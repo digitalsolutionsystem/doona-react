@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { PageHeader } from '../components/PageHeader';
 import {
   AlertTriangle,
   ArrowRight,
@@ -8,8 +10,8 @@ import {
   ChevronRight,
   ClipboardCheck,
   CloudOff,
+  Eye,
   LayoutGrid,
-  MoreVertical,
   Package,
   PackagePlus,
   TrendingUp,
@@ -21,7 +23,7 @@ import {
   getDayAttendanceSummary,
   getPeriodPayrollSummary,
 } from '../domain/attendanceCalculations';
-import { formatNum, formatRp, getMonthLabel } from '../domain/dateUtils';
+import { formatNum, formatRp, getMonthLabel, hasVal } from '../domain/dateUtils';
 import { getOmsetMonthSummary } from '../domain/omsetCalculations';
 import {
   getDayInputSummary,
@@ -79,10 +81,23 @@ export const BerandaPage: React.FC = () => {
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [attentionPopOpen, setAttentionPopOpen] = useState(false);
   const [emptyPopOpen, setEmptyPopOpen] = useState(false);
+  const [closingModalOpen, setClosingModalOpen] = useState(false);
+  const [closingModalFilter, setClosingModalFilter] = useState<'all' | 'filled' | 'empty'>('all');
+  const [datangModalOpen, setDatangModalOpen] = useState(false);
+  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  const [expenseModalFilter, setExpenseModalFilter] = useState<'all' | 'bx' | 'kx'>('all');
   const headerActionsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!attentionPopOpen && !emptyPopOpen) return;
+    if (
+      !attentionPopOpen &&
+      !emptyPopOpen &&
+      !closingModalOpen &&
+      !datangModalOpen &&
+      !expenseModalOpen
+    ) {
+      return;
+    }
     const onPointerDown = (e: MouseEvent) => {
       if (headerActionsRef.current && !headerActionsRef.current.contains(e.target as Node)) {
         setAttentionPopOpen(false);
@@ -93,6 +108,9 @@ export const BerandaPage: React.FC = () => {
       if (e.key === 'Escape') {
         setAttentionPopOpen(false);
         setEmptyPopOpen(false);
+        setClosingModalOpen(false);
+        setDatangModalOpen(false);
+        setExpenseModalOpen(false);
       }
     };
     document.addEventListener('mousedown', onPointerDown);
@@ -101,7 +119,7 @@ export const BerandaPage: React.FC = () => {
       document.removeEventListener('mousedown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [attentionPopOpen, emptyPopOpen]);
+  }, [attentionPopOpen, emptyPopOpen, closingModalOpen, datangModalOpen, expenseModalOpen]);
 
   const stock = useMemo(
     () => getStockDashboardSummary(state, ym, curYm, nowDay),
@@ -113,10 +131,82 @@ export const BerandaPage: React.FC = () => {
     [state, ym, stock.today]
   );
 
+  const datangRows = useMemo(
+    () => dayInput.rows.filter((r) => hasVal(r.datang)),
+    [dayInput.rows]
+  );
+
+  const closingModalRows = useMemo(() => {
+    if (closingModalFilter === 'filled') return dayInput.rows.filter((r) => hasVal(r.closing));
+    if (closingModalFilter === 'empty') return dayInput.rows.filter((r) => !hasVal(r.closing));
+    return dayInput.rows;
+  }, [dayInput.rows, closingModalFilter]);
+
+  const dimsumUsage = useMemo(() => {
+    const dimsumRows = dayInput.rows.filter(
+      (r) =>
+        r.item.kat.trim().toLowerCase() === 'dimsum' ||
+        r.item.nama.trim().toLowerCase().includes('dimsum')
+    );
+    let total = 0;
+    let hasUsage = false;
+    dimsumRows.forEach((r) => {
+      if (r.pemakaian !== null) {
+        hasUsage = true;
+        total += r.pemakaian;
+      }
+    });
+    const sat = dimsumRows[0]?.item.sat || 'porsi';
+    return { total, hasUsage, sat };
+  }, [dayInput.rows]);
+
   const omset = useMemo(
     () => getOmsetMonthSummary(state, ym, stock.today),
     [state, ym, stock.today]
   );
+
+  const expenseBreakdown = useMemo(() => {
+    const items: Array<{
+      id: string;
+      day: number;
+      type: 'bx' | 'kx';
+      label: string;
+      amount: number;
+    }> = [];
+    const allRows = [...omset.p1.rows, ...omset.p2.rows];
+    allRows.forEach((row) => {
+      (row.r.bx || []).forEach((exp, idx) => {
+        const amt = Number(exp.v) || 0;
+        if (amt > 0 || (exp.k && exp.k.trim() !== '')) {
+          items.push({
+            id: `${row.key}-bx-${idx}`,
+            day: row.d,
+            type: 'bx',
+            label: exp.k?.trim() || 'Pengeluaran dari omset',
+            amount: amt,
+          });
+        }
+      });
+      (row.r.kx || []).forEach((exp, idx) => {
+        const amt = Number(exp.v) || 0;
+        if (amt > 0 || (exp.k && exp.k.trim() !== '')) {
+          items.push({
+            id: `${row.key}-kx-${idx}`,
+            day: row.d,
+            type: 'kx',
+            label: exp.k?.trim() || 'Pengeluaran harian (nota)',
+            amount: amt,
+          });
+        }
+      });
+    });
+    return items.sort((a, b) => b.day - a.day);
+  }, [omset]);
+
+  const filteredExpenses = useMemo(() => {
+    if (expenseModalFilter === 'all') return expenseBreakdown;
+    return expenseBreakdown.filter((item) => item.type === expenseModalFilter);
+  }, [expenseBreakdown, expenseModalFilter]);
 
   const activeCycle = stock.today <= 15 ? 'p1' : 'p2';
   const dayAbs = useMemo(
@@ -312,9 +402,8 @@ export const BerandaPage: React.FC = () => {
 
   return (
     <div className="dg-page">
-      {/* STICKY FLOATING TOP WHITE BAR (Sample Style) */}
-      <div className="dg-sticky-header no-print px-4 pt-3 pb-1 md:px-6">
-        <header className="mx-auto flex max-w-[1380px] flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] md:px-5">
+      {/* PERSISTENT STATIONARY TOP BAR */}
+      <PageHeader>
             <div className="flex flex-wrap items-center gap-2.5">
               <div className="inline-flex items-center rounded-xl bg-[#f3f7f5] p-0.5">
                 <button
@@ -530,8 +619,7 @@ export const BerandaPage: React.FC = () => {
                 )}
               </div>
             </div>
-          </header>
-      </div>
+      </PageHeader>
 
       <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-4 md:px-6 md:pt-3 md:pb-5">
         <div className="mx-auto max-w-[1380px] space-y-4">
@@ -588,9 +676,21 @@ export const BerandaPage: React.FC = () => {
             </div>
 
             {/* Card 2: Closing Stok */}
-            <button
-              type="button"
-              onClick={() => navigateTo('in', { day: stock.today, inputTab: 'closing' })}
+            <div
+              onClick={() => {
+                setClosingModalFilter('all');
+                setClosingModalOpen(true);
+              }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setClosingModalFilter('all');
+                  setClosingModalOpen(true);
+                }
+              }}
+              aria-label="Lihat rincian closing stok"
               className="group flex flex-col justify-between rounded-2xl bg-white p-5 text-left shadow-[0_6px_24px_rgba(13,37,48,0.045)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(13,37,48,0.08)] cursor-pointer"
             >
               <div className="flex items-center justify-between gap-2">
@@ -600,7 +700,20 @@ export const BerandaPage: React.FC = () => {
                   </div>
                   <span className="text-[13.5px] font-medium text-[#64748b]">Closing Stok</span>
                 </div>
-                <MoreVertical className="h-4 w-4 text-[#94a3b8] group-hover:text-[#13222b]" />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setClosingModalFilter('all');
+                    setClosingModalOpen(true);
+                  }}
+                  title="Lihat rincian closing stok"
+                  aria-label="Buka popup rincian closing stok"
+                  className="inline-flex h-7.5 items-center gap-1 rounded-lg border border-[#d5e3dd] bg-[#f7faf9] px-2.5 text-[11px] font-bold text-[#15803d] transition hover:border-[#2eb86b] hover:bg-[#2eb86b] hover:text-white active:scale-95 cursor-pointer"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>Rincian</span>
+                </button>
               </div>
 
               <div className="mt-4 flex items-center gap-2.5">
@@ -626,12 +739,20 @@ export const BerandaPage: React.FC = () => {
                   </span>
                 </div>
               </div>
-            </button>
+            </div>
 
             {/* Card 3: Barang Datang */}
-            <button
-              type="button"
-              onClick={() => navigateTo('in', { day: stock.today, inputTab: 'datang' })}
+            <div
+              onClick={() => setDatangModalOpen(true)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setDatangModalOpen(true);
+                }
+              }}
+              aria-label="Lihat rincian barang datang"
               className="group flex flex-col justify-between rounded-2xl bg-white p-5 text-left shadow-[0_6px_24px_rgba(13,37,48,0.045)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(13,37,48,0.08)] cursor-pointer"
             >
               <div className="flex items-center justify-between gap-2">
@@ -641,7 +762,19 @@ export const BerandaPage: React.FC = () => {
                   </div>
                   <span className="text-[13.5px] font-medium text-[#64748b]">Barang Datang</span>
                 </div>
-                <MoreVertical className="h-4 w-4 text-[#94a3b8] group-hover:text-[#13222b]" />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDatangModalOpen(true);
+                  }}
+                  title="Lihat rincian barang datang"
+                  aria-label="Buka popup rincian barang datang"
+                  className="inline-flex h-7.5 items-center gap-1 rounded-lg border border-[#d5e3dd] bg-[#f7faf9] px-2.5 text-[11px] font-bold text-[#15803d] transition hover:border-[#2eb86b] hover:bg-[#2eb86b] hover:text-white active:scale-95 cursor-pointer"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>Rincian</span>
+                </button>
               </div>
 
               <div className="mt-4 flex items-center gap-2.5">
@@ -667,12 +800,24 @@ export const BerandaPage: React.FC = () => {
                   </span>
                 </div>
               </div>
-            </button>
+            </div>
 
             {/* Card 4: Pengeluaran */}
-            <button
-              type="button"
-              onClick={() => navigateTo('om', { day: stock.today, omSub: 'pengeluaran' })}
+            <div
+              onClick={() => {
+                setExpenseModalFilter('all');
+                setExpenseModalOpen(true);
+              }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setExpenseModalFilter('all');
+                  setExpenseModalOpen(true);
+                }
+              }}
+              aria-label="Lihat rincian pengeluaran"
               className="group flex flex-col justify-between rounded-2xl bg-white p-5 text-left shadow-[0_6px_24px_rgba(13,37,48,0.045)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(13,37,48,0.08)] cursor-pointer"
             >
               <div className="flex items-center justify-between gap-2">
@@ -682,7 +827,20 @@ export const BerandaPage: React.FC = () => {
                   </div>
                   <span className="text-[13.5px] font-medium text-[#64748b]">Pengeluaran</span>
                 </div>
-                <MoreVertical className="h-4 w-4 text-[#94a3b8] group-hover:text-[#13222b]" />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpenseModalFilter('all');
+                    setExpenseModalOpen(true);
+                  }}
+                  title="Lihat rincian pengeluaran"
+                  aria-label="Buka popup rincian pengeluaran"
+                  className="inline-flex h-7.5 items-center gap-1 rounded-lg border border-[#d5e3dd] bg-[#f7faf9] px-2.5 text-[11px] font-bold text-[#15803d] transition hover:border-[#2eb86b] hover:bg-[#2eb86b] hover:text-white active:scale-95 cursor-pointer"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>Rincian</span>
+                </button>
               </div>
 
               <div className="mt-4 flex items-center gap-2">
@@ -718,7 +876,7 @@ export const BerandaPage: React.FC = () => {
                   </span>
                 </div>
               </div>
-            </button>
+            </div>
           </section>
 
           {/* ROW 2: RADIAL GAUGE CARD + OPERATIONAL SUMMARY CARD (Sample Middle Split) */}
@@ -802,9 +960,11 @@ export const BerandaPage: React.FC = () => {
 
               <div className="my-6 grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-3">
                 <div>
-                  <div className="text-xs text-[#64748b]">Pemakaian Tgl {stock.today}</div>
+                  <div className="text-xs text-[#64748b]">Pemakaian Dimsum Tgl {stock.today}</div>
                   <div className="font-mono-num mt-1 text-[17px] font-bold text-[#13222b]">
-                    {dayInput.hasAnyPemakaian ? `${formatNum(dayInput.totalPemakaianDay)} unit` : '–'}
+                    {dimsumUsage.hasUsage
+                      ? `${formatNum(dimsumUsage.total)} ${dimsumUsage.sat}`
+                      : '–'}
                   </div>
                 </div>
 
@@ -970,9 +1130,17 @@ export const BerandaPage: React.FC = () => {
                         const tooltipDetail =
                           entry.base === null
                             ? 'Belum diisi'
-                            : `${entry.from} ${formatNum(entry.base)}${
-                                entry.datang ? ` + ${formatNum(entry.datang)}` : ''
-                              }`;
+                            : entry.from.startsWith('Sisa closing')
+                              ? `${entry.from}${
+                                  entry.usage !== null && entry.usage !== undefined
+                                    ? ` · terpakai ${formatNum(entry.usage)}`
+                                    : ''
+                                }`
+                              : entry.base === 0 && entry.from === 'Barang datang' && entry.datang > 0
+                                ? `Barang datang +${formatNum(entry.datang)}`
+                                : `${entry.from} ${formatNum(entry.base)}${
+                                    entry.datang ? ` + ${formatNum(entry.datang)}` : ''
+                                  }`;
                         const valNum = entry.val ?? 0;
                         const maxBarPx = 166;
                         const barPx =
@@ -1061,6 +1229,482 @@ export const BerandaPage: React.FC = () => {
           </section>
         </div>
       </div>
+
+      {/* POPUP RINCIAN BARANG DATANG */}
+      {datangModalOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setDatangModalOpen(false);
+            }}
+          >
+            <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#edf2f0] px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e6f7ee] text-[#15803d]">
+                    <PackagePlus className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-display text-base font-bold text-[#13222b]">
+                      Rincian Barang Datang
+                    </h3>
+                    <p className="mt-0.5 text-xs text-[#64748b]">
+                      Tanggal {stock.today} {getMonthLabel(ym)} · {datangRows.length} item tercatat
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDatangModalOpen(false)}
+                  aria-label="Tutup rincian barang datang"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                {/* Summary Strip */}
+                <div className="mb-4 grid grid-cols-3 gap-2.5">
+                  <div className="rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 py-2.5">
+                    <div className="text-[11px] font-medium text-[#64748b]">Total Datang</div>
+                    <div className="font-mono-num mt-0.5 text-lg font-bold text-[#13222b]">
+                      {formatNum(dayInput.totalDatangDay)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 py-2.5">
+                    <div className="text-[11px] font-medium text-[#64748b]">Item Masuk</div>
+                    <div className="font-mono-num mt-0.5 text-lg font-bold text-[#15803d]">
+                      {datangRows.length}/{totalActive}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 py-2.5">
+                    <div className="text-[11px] font-medium text-[#64748b]">Cakupan</div>
+                    <div className="font-mono-num mt-0.5 text-lg font-bold text-[#13222b]">
+                      {datangPct}%
+                    </div>
+                  </div>
+                </div>
+
+                {datangRows.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#cfdcd7] bg-[#f7faf9] px-4 py-10 text-center">
+                    <PackagePlus className="mb-2 h-7 w-7 text-[#94a3b8]" />
+                    <p className="text-sm font-bold text-[#13222b]">
+                      Belum ada barang datang pada Tgl {stock.today}
+                    </p>
+                    <p className="mt-1 text-xs text-[#64748b]">
+                      Klik tombol di bawah untuk mencatat barang yang datang hari ini.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-[#dce6e2]">
+                    <table className="w-full border-collapse text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-[#e2ebe7] bg-[#f7faf9] text-[11px] font-bold text-[#64748b] uppercase">
+                          <th className="px-3.5 py-2.5">Item</th>
+                          <th className="px-3 py-2.5 text-right whitespace-nowrap">Datang</th>
+                          <th className="px-3.5 py-2.5 text-right whitespace-nowrap">Stok Siap</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#edf2f0] bg-white">
+                        {datangRows.map((row) => (
+                          <tr key={row.item.id} className="transition hover:bg-[#f7faf9]">
+                            <td className="px-3.5 py-2.5">
+                              <div className="font-bold text-[#13222b]">{row.item.nama}</div>
+                              <div className="mt-0.5 text-[11px] text-[#64748b]">
+                                {row.item.kat}
+                                {hasVal(row.prevBase)
+                                  ? ` · ${row.prevLabel}: ${formatNum(row.prevBase)}`
+                                  : ''}
+                              </div>
+                            </td>
+                            <td className="font-mono-num px-3 py-2.5 text-right whitespace-nowrap">
+                              <span className="inline-flex items-center rounded-md bg-[#e6f7ee] px-2 py-0.5 font-bold text-[#15803d]">
+                                +{formatNum(row.datang)} {row.item.sat || 'pcs'}
+                              </span>
+                            </td>
+                            <td className="font-mono-num px-3.5 py-2.5 text-right font-bold text-[#13222b] whitespace-nowrap">
+                              {row.totalSiapJual !== null
+                                ? `${formatNum(row.totalSiapJual)} ${row.item.sat || 'pcs'}`
+                                : '–'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3.5">
+                <button
+                  type="button"
+                  onClick={() => setDatangModalOpen(false)}
+                  className="h-9 rounded-xl bg-white px-4 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDatangModalOpen(false);
+                    navigateTo('in', { day: stock.today, inputTab: 'datang' });
+                  }}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
+                >
+                  <span>Input / Edit Barang Datang</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* POPUP RINCIAN CLOSING STOK */}
+      {closingModalOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setClosingModalOpen(false);
+            }}
+          >
+            <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[600px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#edf2f0] px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e6f7ee] text-[#15803d]">
+                    <ClipboardCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-display text-base font-bold text-[#13222b]">
+                      Rincian Closing Stok
+                    </h3>
+                    <p className="mt-0.5 text-xs text-[#64748b]">
+                      Tanggal {stock.today} {getMonthLabel(ym)} · {stock.filledClosingToday}/
+                      {totalActive} item terisi ({closingPct}%)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setClosingModalOpen(false)}
+                  aria-label="Tutup rincian closing stok"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                <div className="mb-3.5 grid grid-cols-3 gap-2.5">
+                  <div className="rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 py-2.5">
+                    <div className="text-[11px] font-medium text-[#64748b]">Terisi</div>
+                    <div className="font-mono-num mt-0.5 text-lg font-bold text-[#15803d]">
+                      {stock.filledClosingToday}/{totalActive}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 py-2.5">
+                    <div className="text-[11px] font-medium text-[#64748b]">Total Closing</div>
+                    <div className="font-mono-num mt-0.5 text-lg font-bold text-[#13222b]">
+                      {stock.filledClosingToday > 0 ? formatNum(dayInput.totalClosingDay) : '–'}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 py-2.5">
+                    <div className="text-[11px] font-medium text-[#64748b]">Total Pemakaian</div>
+                    <div className="font-mono-num mt-0.5 text-lg font-bold text-[#13222b]">
+                      {dayInput.hasAnyPemakaian ? formatNum(dayInput.totalPemakaianDay) : '–'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter tabs */}
+                <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                  {(
+                    [
+                      { id: 'all', label: `Semua (${dayInput.rows.length})` },
+                      { id: 'filled', label: `Terisi (${stock.filledClosingToday})` },
+                      {
+                        id: 'empty',
+                        label: `Belum (${Math.max(0, totalActive - stock.filledClosingToday)})`,
+                      },
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setClosingModalFilter(tab.id)}
+                      className={`h-7.5 rounded-lg px-3 text-[11.5px] font-bold transition cursor-pointer ${
+                        closingModalFilter === tab.id
+                          ? 'bg-[#2eb86b] text-white'
+                          : 'bg-[#f3f7f5] text-[#475569] hover:bg-[#e4ece8] hover:text-[#13222b]'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {closingModalRows.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#cfdcd7] bg-[#f7faf9] px-4 py-10 text-center">
+                    <ClipboardCheck className="mb-2 h-7 w-7 text-[#94a3b8]" />
+                    <p className="text-sm font-bold text-[#13222b]">
+                      Tidak ada item pada filter ini
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-[#dce6e2]">
+                    <table className="w-full border-collapse text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-[#e2ebe7] bg-[#f7faf9] text-[11px] font-bold text-[#64748b] uppercase">
+                          <th className="px-3.5 py-2.5">Item</th>
+                          <th className="px-3 py-2.5 text-right whitespace-nowrap">Siap Jual</th>
+                          <th className="px-3 py-2.5 text-right whitespace-nowrap">Closing</th>
+                          <th className="px-3.5 py-2.5 text-right whitespace-nowrap">Pemakaian</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#edf2f0] bg-white">
+                        {closingModalRows.map((row) => (
+                          <tr
+                            key={row.item.id}
+                            className={`transition hover:bg-[#f7faf9] ${
+                              row.isNegativeUsage ? 'bg-[#fff5f5]' : ''
+                            }`}
+                          >
+                            <td className="px-3.5 py-2.5">
+                              <div className="font-bold text-[#13222b]">{row.item.nama}</div>
+                              <div className="mt-0.5 text-[11px] text-[#64748b]">
+                                {row.item.kat} · {row.item.sat || 'pcs'}
+                              </div>
+                            </td>
+                            <td className="font-mono-num px-3 py-2.5 text-right font-semibold text-[#475569] whitespace-nowrap">
+                              {row.totalSiapJual !== null ? formatNum(row.totalSiapJual) : '–'}
+                            </td>
+                            <td className="font-mono-num px-3 py-2.5 text-right font-bold whitespace-nowrap">
+                              {hasVal(row.closing) ? (
+                                <span
+                                  className={
+                                    row.isZeroClosing
+                                      ? 'rounded-md bg-[#fee2e2] px-2 py-0.5 text-[#b91c1c]'
+                                      : row.isLowClosing
+                                        ? 'rounded-md bg-[#fef3c7] px-2 py-0.5 text-[#b45309]'
+                                        : 'text-[#13222b]'
+                                  }
+                                >
+                                  {formatNum(row.closing)}
+                                </span>
+                              ) : (
+                                <span className="font-medium text-[#94a3b8]">Belum</span>
+                              )}
+                            </td>
+                            <td className="font-mono-num px-3.5 py-2.5 text-right font-bold whitespace-nowrap">
+                              {row.pemakaian !== null ? (
+                                <span
+                                  className={
+                                    row.isNegativeUsage ? 'text-[#ef4444]' : 'text-[#15803d]'
+                                  }
+                                >
+                                  {formatNum(row.pemakaian)}
+                                </span>
+                              ) : (
+                                <span className="font-medium text-[#94a3b8]">–</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3.5">
+                <button
+                  type="button"
+                  onClick={() => setClosingModalOpen(false)}
+                  className="h-9 rounded-xl bg-white px-4 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClosingModalOpen(false);
+                    navigateTo('in', { day: stock.today, inputTab: 'closing' });
+                  }}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
+                >
+                  <span>Input / Edit Closing Stok</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* POPUP RINCIAN PENGELUARAN */}
+      {expenseModalOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setExpenseModalOpen(false);
+            }}
+          >
+            <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[600px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#edf2f0] px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#fef3c7] text-[#b45309]">
+                    <Wallet className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-display text-base font-bold text-[#13222b]">
+                      Rincian Pengeluaran
+                    </h3>
+                    <p className="mt-0.5 text-xs text-[#64748b]">
+                      {getMonthLabel(ym)} · {expenseBreakdown.length} transaksi tercatat
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExpenseModalOpen(false)}
+                  aria-label="Tutup rincian pengeluaran"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                <div className="mb-3.5 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                  <div className="rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 py-2.5">
+                    <div className="text-[11px] font-medium text-[#64748b]">Total Pengeluaran</div>
+                    <div className="font-mono-num mt-0.5 truncate text-sm font-bold text-[#13222b]">
+                      {formatRp(omset.totalPengeluaran)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 py-2.5">
+                    <div className="text-[11px] font-medium text-[#64748b]">Dari Omset</div>
+                    <div className="font-mono-num mt-0.5 truncate text-sm font-bold text-[#b45309]">
+                      {formatRp(omset.pengeluaranOmset)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 py-2.5">
+                    <div className="text-[11px] font-medium text-[#64748b]">Harian (Nota)</div>
+                    <div className="font-mono-num mt-0.5 truncate text-sm font-bold text-[#13222b]">
+                      {formatRp(omset.pengeluaranHarian)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter tabs */}
+                <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                  {(
+                    [
+                      { id: 'all', label: `Semua (${expenseBreakdown.length})` },
+                      {
+                        id: 'bx',
+                        label: `Dari Omset (${expenseBreakdown.filter((e) => e.type === 'bx').length})`,
+                      },
+                      {
+                        id: 'kx',
+                        label: `Harian / Nota (${expenseBreakdown.filter((e) => e.type === 'kx').length})`,
+                      },
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setExpenseModalFilter(tab.id)}
+                      className={`h-7.5 rounded-lg px-3 text-[11.5px] font-bold transition cursor-pointer ${
+                        expenseModalFilter === tab.id
+                          ? 'bg-[#2eb86b] text-white'
+                          : 'bg-[#f3f7f5] text-[#475569] hover:bg-[#e4ece8] hover:text-[#13222b]'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {filteredExpenses.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#cfdcd7] bg-[#f7faf9] px-4 py-10 text-center">
+                    <Wallet className="mb-2 h-7 w-7 text-[#94a3b8]" />
+                    <p className="text-sm font-bold text-[#13222b]">
+                      Belum ada pengeluaran tercatat pada {getMonthLabel(ym)}
+                    </p>
+                    <p className="mt-1 text-xs text-[#64748b]">
+                      Klik tombol di bawah untuk mencatat pengeluaran operasional atau nota harian.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-[#dce6e2]">
+                    <table className="w-full border-collapse text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-[#e2ebe7] bg-[#f7faf9] text-[11px] font-bold text-[#64748b] uppercase">
+                          <th className="px-3.5 py-2.5 whitespace-nowrap">Tanggal</th>
+                          <th className="px-3 py-2.5">Keterangan</th>
+                          <th className="px-3.5 py-2.5 text-right whitespace-nowrap">Nominal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#edf2f0] bg-white">
+                        {filteredExpenses.map((exp) => (
+                          <tr key={exp.id} className="transition hover:bg-[#f7faf9]">
+                            <td className="font-mono-num px-3.5 py-2.5 font-bold text-[#475569] whitespace-nowrap">
+                              Tgl {exp.day}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <div className="font-bold text-[#13222b]">{exp.label}</div>
+                              <div className="mt-0.5">
+                                <span
+                                  className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                                    exp.type === 'bx'
+                                      ? 'bg-[#fef3c7] text-[#b45309]'
+                                      : 'bg-[#f1f5f9] text-[#475569]'
+                                  }`}
+                                >
+                                  {exp.type === 'bx' ? 'Dari Omset' : 'Harian (Nota)'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="font-mono-num px-3.5 py-2.5 text-right font-bold text-[#13222b] whitespace-nowrap">
+                              {formatRp(exp.amount)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3.5">
+                <button
+                  type="button"
+                  onClick={() => setExpenseModalOpen(false)}
+                  className="h-9 rounded-xl bg-white px-4 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpenseModalOpen(false);
+                    navigateTo('om', { day: stock.today, omSub: 'pengeluaran' });
+                  }}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
+                >
+                  <span>Kelola Pengeluaran</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

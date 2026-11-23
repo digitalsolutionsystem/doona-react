@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { PageHeader } from '../components/PageHeader';
 import {
   AlertTriangle,
   ArrowRight,
@@ -196,9 +197,8 @@ export const SettingSatuanPage: React.FC = () => {
 
   return (
     <div className="dg-page">
-      {/* STICKY FLOATING TOP HEADER */}
-      <div className="dg-sticky-header no-print px-4 pt-3 pb-1 md:px-6">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] md:px-5">
+      {/* PERSISTENT STATIONARY TOP HEADER */}
+      <PageHeader>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-display text-[17px] font-bold tracking-[-0.015em] text-[#13222b]">
             Setting Satuan
@@ -258,8 +258,7 @@ export const SettingSatuanPage: React.FC = () => {
             </button>
           )}
         </div>
-        </header>
-      </div>
+      </PageHeader>
 
       {/* FEEDBACK BANNER */}
       {feedback && (

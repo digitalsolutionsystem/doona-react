@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { PageHeader } from '../components/PageHeader';
 import {
   AlertTriangle,
   Archive,
@@ -35,10 +36,12 @@ export const MasterItemPage: React.FC = () => {
     navigateTo,
   } = useApp();
 
+  const [addModalOpen, setAddModalOpen] = useState(false);
   const [newNama, setNewNama] = useState('');
   const [newKat, setNewKat] = useState<string>(DEFAULT_CATEGORIES[0]);
   const [newSat, setNewSat] = useState<string>('');
   const [newMin, setNewMin] = useState<string>('');
+  const [addError, setAddError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [catFilter, setCatFilter] = useState<string>('all');
@@ -81,6 +84,19 @@ export const MasterItemPage: React.FC = () => {
     return () => window.clearTimeout(t);
   }, [feedback]);
 
+  useEffect(() => {
+    if (!addModalOpen && !editTarget && !deleteTarget) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (deleteTarget) setDeleteTarget(null);
+        else if (editTarget) setEditTarget(null);
+        else if (addModalOpen) setAddModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [addModalOpen, editTarget, deleteTarget]);
+
   const itemStatsMap = useMemo(() => {
     const map: Record<string, ItemTransactionStats> = {};
     state.items.forEach((item) => {
@@ -113,6 +129,16 @@ export const MasterItemPage: React.FC = () => {
     });
   }, [state.items, searchQuery, catFilter, statusFilter]);
 
+  const openAddModal = () => {
+    if (isViewer) return;
+    setNewNama('');
+    setNewKat((prev) => prev || DEFAULT_CATEGORIES[0]);
+    setNewSat((prev) => (prev && satuanList.includes(prev) ? prev : satuanList[0] || 'pcs'));
+    setNewMin('');
+    setAddError(null);
+    setAddModalOpen(true);
+  };
+
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (isViewer) return;
@@ -124,11 +150,13 @@ export const MasterItemPage: React.FC = () => {
       min: minVal,
     });
     if (!res.ok) {
-      setFeedback({ tone: 'err', text: res.error || 'Gagal menambah item.' });
+      setAddError(res.error || 'Gagal menambah item.');
       return;
     }
     setNewNama('');
     setNewMin('');
+    setAddError(null);
+    setAddModalOpen(false);
     setFeedback({
       tone: 'ok',
       text: `Item "${res.item?.nama}" (ID: ${res.item?.id}) berhasil ditambahkan ke Master Item.`,
@@ -250,9 +278,8 @@ export const MasterItemPage: React.FC = () => {
 
   return (
     <div className="dg-page">
-      {/* STICKY FLOATING TOP HEADER */}
-      <div className="dg-sticky-header no-print px-4 pt-3 pb-1 md:px-6">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] md:px-5">
+      {/* PERSISTENT STATIONARY TOP HEADER */}
+      <PageHeader>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-display text-[17px] font-bold tracking-[-0.015em] text-[#13222b]">
             Master Item
@@ -267,16 +294,28 @@ export const MasterItemPage: React.FC = () => {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => navigateTo('st')}
-          className="inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e6f7ee] hover:text-[#15803d] whitespace-nowrap shrink-0 cursor-pointer"
-        >
-          <Box className="h-3.5 w-3.5 text-[#2eb86b]" />
-          <span>Setting Satuan</span>
-        </button>
-        </header>
-      </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigateTo('st')}
+            className="inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e6f7ee] hover:text-[#15803d] whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <Box className="h-3.5 w-3.5 text-[#2eb86b]" />
+            <span>Setting Satuan</span>
+          </button>
+
+          {!isViewer && (
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-3.5 text-xs font-semibold text-white transition hover:bg-[#259f5b] whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Tambah Item</span>
+            </button>
+          )}
+        </div>
+      </PageHeader>
 
       {/* FEEDBACK BANNER */}
       {feedback && (
@@ -311,86 +350,6 @@ export const MasterItemPage: React.FC = () => {
       {/* MAIN SCROLLABLE WORKSPACE */}
       <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
         <div className="space-y-4">
-          {/* QUICK ADD CARD */}
-          {!isViewer && (
-            <form
-              onSubmit={handleQuickAdd}
-              className="no-print flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] md:px-5"
-            >
-              <div className="min-w-[180px] flex-1">
-                <label className="mb-1.5 block text-[11px] font-semibold text-[#64748b]">
-                  Nama Item Baru
-                </label>
-                <input
-                  type="text"
-                  value={newNama}
-                  onChange={(e) => setNewNama(e.target.value)}
-                  placeholder="Contoh: Dimsum Udang"
-                  className="h-9 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-[13px] text-[#13222b] placeholder:text-[#94a3b8] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
-                />
-              </div>
-
-              <div className="w-44">
-                <label className="mb-1.5 block text-[11px] font-semibold text-[#64748b]">
-                  Kategori
-                </label>
-                <input
-                  type="text"
-                  list="master-kat-list"
-                  value={newKat}
-                  onChange={(e) => setNewKat(e.target.value)}
-                  placeholder="Kategori"
-                  className="h-9 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-[13px] text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
-                />
-                <datalist id="master-kat-list">
-                  {categories.map((k) => (
-                    <option key={k} value={k} />
-                  ))}
-                </datalist>
-              </div>
-
-              <div className="w-28">
-                <label className="mb-1.5 block text-[11px] font-semibold text-[#64748b]">
-                  Satuan
-                </label>
-                <select
-                  value={newSat}
-                  onChange={(e) => setNewSat(e.target.value)}
-                  className="h-9 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-2.5 text-[13px] text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
-                >
-                  {satuanList.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="w-28">
-                <label className="mb-1.5 block text-[11px] font-semibold text-[#64748b]">
-                  Stok Min.
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={newMin}
-                  onChange={(e) => setNewMin(e.target.value)}
-                  placeholder="0"
-                  className="font-mono-num h-9 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-[13px] text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Tambah Item</span>
-              </button>
-            </form>
-          )}
-
           {/* TABLE CARD */}
           <section className="overflow-hidden rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
             {/* SEARCH & FILTER TOOLBAR */}
@@ -478,18 +437,29 @@ export const MasterItemPage: React.FC = () => {
                       ? 'Belum ada item di Master Item.'
                       : 'Tidak ada item yang cocok dengan pencarian atau filter.'}
                   </p>
-                  {(searchQuery || catFilter !== 'all' || statusFilter !== 'all') && (
+                  {state.items.length === 0 && !isViewer ? (
                     <button
                       type="button"
-                      onClick={() => {
-                        setSearchQuery('');
-                        setCatFilter('all');
-                        setStatusFilter('all');
-                      }}
-                      className="mt-3 h-8.5 rounded-xl bg-[#f3f7f5] px-4 text-xs font-semibold text-[#13222b] hover:bg-[#e6f7ee] hover:text-[#15803d] cursor-pointer"
+                      onClick={openAddModal}
+                      className="mt-3 inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
                     >
-                      Reset filter
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Tambah Item Pertama</span>
                     </button>
+                  ) : (
+                    (searchQuery || catFilter !== 'all' || statusFilter !== 'all') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setCatFilter('all');
+                          setStatusFilter('all');
+                        }}
+                        className="mt-3 h-8.5 rounded-xl bg-[#f3f7f5] px-4 text-xs font-semibold text-[#13222b] hover:bg-[#e6f7ee] hover:text-[#15803d] cursor-pointer"
+                      >
+                        Reset filter
+                      </button>
+                    )
                   )}
                 </div>
               ) : (
@@ -659,6 +629,135 @@ export const MasterItemPage: React.FC = () => {
           </section>
         </div>
       </div>
+
+      {/* MODAL: TAMBAH ITEM BARU */}
+      {addModalOpen && !isViewer && (
+        <div
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setAddModalOpen(false);
+          }}
+        >
+          <div className="w-full max-w-[460px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+            <div className="flex items-start justify-between border-b border-[#edf2f0] px-6 py-4">
+              <div>
+                <h3 className="font-display text-base font-bold text-[#13222b]">
+                  Tambah Item Baru
+                </h3>
+                <p className="mt-0.5 text-xs text-[#64748b]">
+                  Item baru akan langsung tersedia di Stok &amp; Input serta Tabel Bulanan
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddModalOpen(false)}
+                aria-label="Tutup modal"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickAdd}>
+              <div className="space-y-3.5 px-6 py-5">
+                {addError && (
+                  <div className="rounded-xl bg-[#fee2e2] px-3.5 py-2.5 text-xs font-semibold text-[#b91c1c]">
+                    {addError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
+                    Nama Item Baru <span className="text-[#ef4444]">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    value={newNama}
+                    onChange={(e) => {
+                      setNewNama(e.target.value);
+                      if (addError) setAddError(null);
+                    }}
+                    placeholder="Contoh: Dimsum Udang"
+                    className="h-9.5 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3.5 text-sm text-[#13222b] placeholder:text-[#94a3b8] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
+                    Kategori
+                  </label>
+                  <input
+                    type="text"
+                    list="master-kat-list"
+                    value={newKat}
+                    onChange={(e) => setNewKat(e.target.value)}
+                    placeholder="Kategori"
+                    className="h-9.5 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3.5 text-sm text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
+                  />
+                  <datalist id="master-kat-list">
+                    {categories.map((k) => (
+                      <option key={k} value={k} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
+                      Satuan
+                    </label>
+                    <select
+                      value={newSat}
+                      onChange={(e) => setNewSat(e.target.value)}
+                      className="h-9.5 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-sm text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
+                    >
+                      {satuanList.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
+                      Stok Min.
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={newMin}
+                      onChange={(e) => setNewMin(e.target.value)}
+                      placeholder="0"
+                      className="font-mono-num h-9.5 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3.5 text-sm font-semibold text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-6 py-3.5">
+                <button
+                  type="button"
+                  onClick={() => setAddModalOpen(false)}
+                  className="h-9 rounded-xl bg-[#eef3f1] px-4 text-xs font-semibold text-[#13222b] hover:bg-[#e1ebe7] cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] whitespace-nowrap cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Tambah Item</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: EDIT ITEM */}
       {editTarget && (

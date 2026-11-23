@@ -125,6 +125,8 @@ export function normalizeAppData(raw: Partial<AppData> | null | undefined): AppD
       : DEFAULT_KARYAWAN.map((k) => ({ ...k })),
     karyawanArsip: Array.isArray(raw.karyawanArsip) ? raw.karyawanArsip : undefined,
     absensi: raw.absensi && typeof raw.absensi === 'object' ? raw.absensi : {},
+    shiftConfig:
+      raw.shiftConfig && typeof raw.shiftConfig === 'object' ? raw.shiftConfig : undefined,
     omset:
       raw.omset && typeof raw.omset === 'object'
         ? {

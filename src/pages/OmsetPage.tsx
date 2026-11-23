@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { PageHeader } from '../components/PageHeader';
 import {
   AlertTriangle,
   ArrowRight,
@@ -7,6 +8,7 @@ import {
   ChevronRight,
   Download,
   HelpCircle,
+  Info,
   Lock,
   LockOpen,
   Plus,
@@ -125,6 +127,8 @@ export const OmsetPage: React.FC = () => {
     day: number;
     kind: 'kx' | 'bx';
   } | null>(null);
+  const [rekapInfoOpen, setRekapInfoOpen] = useState(false);
+  const rekapInfoRef = useRef<HTMLDivElement | null>(null);
 
   const nd = useMemo(() => getDaysInMonth(ym), [ym]);
   const monthName = MONTH_NAMES[getMonth(ym) - 1] || '';
@@ -152,6 +156,28 @@ export const OmsetPage: React.FC = () => {
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [hasUnsavedOmset]);
+
+  useEffect(() => {
+    if (omSub !== 'rekap') setRekapInfoOpen(false);
+  }, [omSub]);
+
+  useEffect(() => {
+    if (!rekapInfoOpen) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      if (rekapInfoRef.current && !rekapInfoRef.current.contains(e.target as Node)) {
+        setRekapInfoOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setRekapInfoOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [rekapInfoOpen]);
 
   const activePeriod: 1 | 2 = omPeriod === 1 || omPeriod === 2 ? omPeriod : getPeriodOfDay(day);
   const dayPeriod: 1 | 2 = getPeriodOfDay(day);
@@ -488,39 +514,137 @@ export const OmsetPage: React.FC = () => {
 
   return (
     <div className="dg-page">
-      {/* ── STICKY FLOATING TOP HEADER BAR ── */}
-      <div className="dg-sticky-header no-print px-4 pt-3 pb-1 md:px-6">
-        <header className="rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] md:px-5">
-        <div className="flex flex-wrap items-center justify-between gap-2.5">
+      {/* ── PERSISTENT STATIONARY TOP HEADER BAR ── */}
+      <PageHeader>
           {/* Left: Date or Month Navigation + Period Switcher */}
           <div className="flex flex-wrap items-center gap-2.5">
             {omSub === 'harian' || omSub === 'pengeluaran' ? renderDateNav() : renderMonthNav()}
 
             {omSub === 'rekap' && (
-              <div className="flex items-center gap-1 rounded-xl bg-[#f3f7f5] p-1">
-                <button
-                  type="button"
-                  onClick={() => setOmPeriod(1)}
-                  className={`h-7 shrink-0 rounded-lg px-3 text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                    activePeriod === 1
-                      ? 'bg-[#0d2530] text-white shadow-xs'
-                      : 'text-[#64748b] hover:text-[#13222b]'
-                  }`}
-                >
-                  Periode 1 (1–15)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOmPeriod(2)}
-                  className={`h-7 shrink-0 rounded-lg px-3 text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                    activePeriod === 2
-                      ? 'bg-[#0d2530] text-white shadow-xs'
-                      : 'text-[#64748b] hover:text-[#13222b]'
-                  }`}
-                >
-                  Periode 2 (16–{nd})
-                </button>
-              </div>
+              <>
+                <div className="flex items-center gap-1 rounded-xl bg-[#f3f7f5] p-1">
+                  <button
+                    type="button"
+                    onClick={() => setOmPeriod(1)}
+                    className={`h-7 shrink-0 rounded-lg px-3 text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                      activePeriod === 1
+                        ? 'bg-[#0d2530] text-white shadow-xs'
+                        : 'text-[#64748b] hover:text-[#13222b]'
+                    }`}
+                  >
+                    Periode 1 (1–15)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOmPeriod(2)}
+                    className={`h-7 shrink-0 rounded-lg px-3 text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                      activePeriod === 2
+                        ? 'bg-[#0d2530] text-white shadow-xs'
+                        : 'text-[#64748b] hover:text-[#13222b]'
+                    }`}
+                  >
+                    Periode 2 (16–{nd})
+                  </button>
+                </div>
+
+                {/* Clickable Period Status & Validation Info Popover */}
+                <div ref={rekapInfoRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setRekapInfoOpen((prev) => !prev)}
+                    aria-expanded={rekapInfoOpen}
+                    aria-label="Info status periode"
+                    title="Lihat info status periode"
+                    className="inline-flex h-8.5 shrink-0 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-3 text-xs font-semibold text-white whitespace-nowrap transition hover:bg-[#259f5b] cursor-pointer"
+                  >
+                    {activeStats.closed ? (
+                      <Lock className="h-3.5 w-3.5 shrink-0" />
+                    ) : activeValidation.noKetDays.length > 0 ||
+                      activeValidation.unlabelledExpenses.length > 0 ? (
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    ) : (
+                      <Info className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                    <span>Info</span>
+                  </button>
+
+                  {rekapInfoOpen && (
+                    <div className="absolute left-0 top-full z-50 mt-2 w-[340px] max-w-[calc(100vw-2rem)] rounded-2xl bg-white p-4 shadow-[0_18px_40px_rgba(13,37,48,0.16)]">
+                      <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-[#edf2f0] pb-2">
+                        <span
+                          className={`inline-flex items-center gap-1.5 text-xs font-bold ${
+                            activeStats.closed ? 'text-[#15803d]' : 'text-[#92400e]'
+                          }`}
+                        >
+                          {activeStats.closed ? (
+                            <Lock className="h-3.5 w-3.5" />
+                          ) : (
+                            <Info className="h-3.5 w-3.5" />
+                          )}
+                          <span>
+                            {activeStats.closed ? 'Periode Sudah Closed' : 'Status Periode'}
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setRekapInfoOpen(false)}
+                          aria-label="Tutup info periode"
+                          className="rounded-lg p-1 text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      {activeStats.closed ? (
+                        <p className="text-xs leading-relaxed text-[#15803d]">
+                          <strong>Closed</strong> · {activeStats.label} dikunci pada{' '}
+                          {new Date(activeStats.closed.at).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric',
+                          })}{' '}
+                          oleh <strong>{activeStats.closed.by}</strong>.
+                        </p>
+                      ) : (
+                        <div className="space-y-2 text-xs leading-relaxed text-[#92400e]">
+                          <p>
+                            <strong>{activeStats.label}</strong> · Terisi{' '}
+                            <strong className="font-mono-num">
+                              {activeStats.filled}/{activeStats.days}
+                            </strong>{' '}
+                            hari · Belum di-closing.
+                          </p>
+                          {activeValidation.noKetDays.length > 0 && (
+                            <p className="font-bold text-[#b91c1c]">
+                              Keterangan selisih kosong: Tgl {activeValidation.noKetDays.join(', ')}
+                            </p>
+                          )}
+                          {activeValidation.unlabelledExpenses.length > 0 && (
+                            <p className="font-bold text-[#b91c1c]">
+                              {activeValidation.unlabelledExpenses.length} pengeluaran tanpa
+                              keterangan
+                            </p>
+                          )}
+                          {activeValidation.noKetDays.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRekapInfoOpen(false);
+                                setMonthAndDay(ym, activeValidation.noKetDays[0]);
+                                setOmSub('harian');
+                              }}
+                              className="inline-flex items-center gap-1 pt-0.5 font-bold text-[#b91c1c] underline underline-offset-2 whitespace-nowrap cursor-pointer"
+                            >
+                              <span>Lengkapi Tgl {activeValidation.noKetDays[0]}</span>
+                              <ArrowRight className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
             {omSub === 'kalender' && (
@@ -553,12 +677,15 @@ export const OmsetPage: React.FC = () => {
             )}
           </div>
 
-          {/* Right: Metric Dropdown (when Grafik) + Submenu Dropdown */}
+          {/* Right: Contextual Actions + Metric/Submenu Dropdowns */}
           <div className="flex flex-wrap items-center gap-2">
             {omSub === 'grafik' && (
               <select
                 value={chartMetric}
-                onChange={(e) => setChartMetric(e.target.value as OmsetChartMetricKey)}
+                onChange={(e) => {
+                  setChartMetric(e.target.value as OmsetChartMetricKey);
+                  e.currentTarget.blur();
+                }}
                 aria-label="Pilih metrik grafik OMSET"
                 className="h-8.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] outline-none transition hover:bg-[#e7efec] focus:ring-2 focus:ring-[#2eb86b] cursor-pointer"
               >
@@ -576,6 +703,7 @@ export const OmsetPage: React.FC = () => {
                 const next = e.target.value as OmsetSubTab;
                 if (next === 'rekap') setOmPeriod(0);
                 setOmSub(next);
+                e.currentTarget.blur();
               }}
               aria-label="Submenu OMSET"
               className="h-8.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] outline-none transition hover:bg-[#e7efec] focus:ring-2 focus:ring-[#2eb86b] cursor-pointer"
@@ -586,10 +714,82 @@ export const OmsetPage: React.FC = () => {
                 </option>
               ))}
             </select>
+
+            {omSub === 'harian' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setOmPeriod(dayPeriod);
+                  setOmSub('rekap');
+                }}
+                className="h-8.5 shrink-0 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] whitespace-nowrap cursor-pointer"
+              >
+                Rekap Periode {dayPeriod}
+              </button>
+            )}
+
+            {(omSub === 'harian' || omSub === 'pengeluaran') && !isDayLocked && (
+              <button
+                type="button"
+                disabled={sync.isSyncing}
+                onClick={handleSaveOmset}
+                className={`inline-flex h-8.5 shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-xs font-semibold text-white transition disabled:opacity-65 whitespace-nowrap cursor-pointer ${
+                  hasUnsavedOmset
+                    ? 'bg-[#f59e0b] hover:bg-[#d97706]'
+                    : 'bg-[#2eb86b] hover:bg-[#259f5b]'
+                }`}
+              >
+                {sync.isSyncing ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                <span>{hasUnsavedOmset ? 'Simpan Perubahan' : 'Simpan Omset'}</span>
+              </button>
+            )}
+
+            {omSub === 'rekap' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleExportPeriodCsv(activePeriod)}
+                  className="inline-flex h-8.5 shrink-0 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] whitespace-nowrap cursor-pointer"
+                >
+                  <Download className="h-3.5 w-3.5 text-[#2eb86b]" />
+                  <span>CSV P{activePeriod}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="no-print inline-flex h-8.5 shrink-0 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] whitespace-nowrap cursor-pointer"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>Cetak</span>
+                </button>
+                {!isViewer &&
+                  (activeStats.closed ? (
+                    <button
+                      type="button"
+                      onClick={() => setReopenModalPeriod(activePeriod)}
+                      className="inline-flex h-8.5 shrink-0 items-center gap-1.5 rounded-xl bg-[#fee2e2] px-3 text-xs font-semibold text-[#b91c1c] transition hover:bg-[#fecaca] whitespace-nowrap cursor-pointer"
+                    >
+                      <LockOpen className="h-3.5 w-3.5" />
+                      <span>Buka Closing</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setClosingModalPeriod(activePeriod)}
+                      className="inline-flex h-8.5 shrink-0 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-3.5 text-xs font-semibold text-white transition hover:bg-[#259f5b] whitespace-nowrap cursor-pointer"
+                    >
+                      <Lock className="h-3.5 w-3.5" />
+                      <span>Closing P{activePeriod}</span>
+                    </button>
+                  ))}
+              </>
+            )}
           </div>
-        </div>
-        </header>
-      </div>
+      </PageHeader>
 
       {/* ── FLOATING FEEDBACK BANNER ── */}
       {feedback && (
@@ -614,7 +814,7 @@ export const OmsetPage: React.FC = () => {
       <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
         {/* ═══════════════════ TAB 1: HARIAN ═══════════════════ */}
         {omSub === 'harian' && (
-          <div className="mx-auto max-w-[1180px] space-y-4">
+          <div className="w-full space-y-4">
             {dayClosingRec && (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-[#e6f7ee] px-4 py-3 text-xs text-[#15803d] shadow-[0_6px_22px_rgba(13,37,48,0.03)]">
                 <div className="flex items-center gap-2">
@@ -1025,7 +1225,7 @@ export const OmsetPage: React.FC = () => {
 
         {/* ═══════════════════ TAB 2: PENGELUARAN ═══════════════════ */}
         {omSub === 'pengeluaran' && (
-          <div className="mx-auto max-w-[1180px] space-y-4">
+          <div className="w-full space-y-4">
             {dayClosingRec && (
               <div className="flex items-center gap-2 rounded-2xl bg-[#e6f7ee] px-4 py-3 text-xs text-[#15803d]">
                 <Lock className="h-3.5 w-3.5 shrink-0 text-[#15803d]" />
@@ -1424,7 +1624,7 @@ export const OmsetPage: React.FC = () => {
 
         {/* ═══════════════════ TAB 3: KALENDER ═══════════════════ */}
         {omSub === 'kalender' && (
-          <div className="mx-auto max-w-[1180px] space-y-4">
+          <div className="w-full space-y-4">
             {/* Floating 5-Column Monthly KPI Strip */}
             <div className="overflow-hidden rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
               <div className="grid grid-cols-2 divide-x divide-y divide-[#edf2f0] sm:grid-cols-3 lg:grid-cols-5 lg:divide-y-0">
@@ -1744,7 +1944,7 @@ export const OmsetPage: React.FC = () => {
 
         {/* ═══════════════════ TAB 4: GRAFIK ═══════════════════ */}
         {omSub === 'grafik' && (
-          <div className="mx-auto max-w-[1180px]">
+          <div className="w-full">
             <OmsetChartPanel
               state={state}
               ym={ym}
@@ -1759,60 +1959,7 @@ export const OmsetPage: React.FC = () => {
 
         {/* ═══════════════════ TAB 5: REKAP & CLOSING ═══════════════════ */}
         {omSub === 'rekap' && (
-          <div className="mx-auto max-w-[1220px] space-y-4">
-            {/* Status & Validation Banner */}
-            {activeStats.closed ? (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-[#e6f7ee] px-4 py-3 text-xs text-[#15803d]">
-                <div className="flex items-center gap-2">
-                  <Lock className="h-4 w-4 text-[#15803d]" />
-                  <span>
-                    <strong>Closed</strong> · {activeStats.label} dikunci pada{' '}
-                    {new Date(activeStats.closed.at).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}{' '}
-                    oleh <strong>{activeStats.closed.by}</strong>.
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-[#fef3c7] px-4 py-3 text-xs text-[#92400e]">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span>
-                    <strong>{activeStats.label}</strong> · Terisi{' '}
-                    <strong className="font-mono-num">
-                      {activeStats.filled}/{activeStats.days}
-                    </strong>{' '}
-                    hari · Belum di-closing.
-                  </span>
-                  {activeValidation.noKetDays.length > 0 && (
-                    <span className="font-bold text-[#b91c1c]">
-                      · Keterangan selisih kosong: Tgl {activeValidation.noKetDays.join(', ')}
-                    </span>
-                  )}
-                  {activeValidation.unlabelledExpenses.length > 0 && (
-                    <span className="font-bold text-[#b91c1c]">
-                      · {activeValidation.unlabelledExpenses.length} pengeluaran tanpa keterangan
-                    </span>
-                  )}
-                </div>
-                {activeValidation.noKetDays.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMonthAndDay(ym, activeValidation.noKetDays[0]);
-                      setOmSub('harian');
-                    }}
-                    className="inline-flex items-center gap-1 font-bold text-[#b91c1c] underline underline-offset-2 whitespace-nowrap cursor-pointer"
-                  >
-                    <span>Lengkapi Tgl {activeValidation.noKetDays[0]}</span>
-                    <ArrowRight className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-            )}
-
+          <div className="w-full space-y-4">
             {/* Floating 7-Column Period KPI Strip */}
             <div className="overflow-hidden rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
               <div className="grid grid-cols-2 divide-x divide-y divide-[#edf2f0] sm:grid-cols-4 lg:grid-cols-7 lg:divide-y-0">
@@ -2205,108 +2352,6 @@ export const OmsetPage: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* ── FLOATING BOTTOM ACTION FOOTER BAR ── */}
-      {(omSub === 'harian' || omSub === 'pengeluaran' || omSub === 'rekap') && (
-        <div className="no-print mx-4 mb-3 shrink-0 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.06)] md:mx-6 md:px-5">
-          {omSub === 'rekap' ? (
-            <>
-              <span className="text-xs text-[#64748b]">
-                Klik baris tanggal untuk membuka rincian di tab Harian.
-              </span>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleExportPeriodCsv(activePeriod)}
-                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] whitespace-nowrap cursor-pointer"
-                >
-                  <Download className="h-3.5 w-3.5 text-[#2eb86b]" />
-                  <span>Unduh CSV P{activePeriod}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="no-print inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] whitespace-nowrap cursor-pointer"
-                >
-                  <Printer className="h-3.5 w-3.5" />
-                  <span>Cetak</span>
-                </button>
-                {!isViewer &&
-                  (activeStats.closed ? (
-                    <button
-                      type="button"
-                      onClick={() => setReopenModalPeriod(activePeriod)}
-                      className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#fee2e2] px-3.5 text-xs font-semibold text-[#b91c1c] transition hover:bg-[#fecaca] whitespace-nowrap cursor-pointer"
-                    >
-                      <LockOpen className="h-3.5 w-3.5" />
-                      <span>Buka Closing</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setClosingModalPeriod(activePeriod)}
-                      className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] whitespace-nowrap cursor-pointer"
-                    >
-                      <Lock className="h-3.5 w-3.5" />
-                      <span>Closing Periode {activePeriod}</span>
-                    </button>
-                  ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <span
-                className={`text-xs font-semibold ${
-                  hasUnsavedOmset
-                    ? 'text-[#b45309]'
-                    : sync.isError
-                      ? 'text-[#dc2626]'
-                      : 'text-[#64748b]'
-                }`}
-              >
-                {hasUnsavedOmset
-                  ? 'Ada perubahan omset belum disimpan'
-                  : dayClosingRec
-                    ? 'Periode ini sudah closing (terkunci)'
-                    : sync.text}
-              </span>
-              <div className="flex items-center gap-2">
-                {omSub === 'harian' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOmPeriod(dayPeriod);
-                      setOmSub('rekap');
-                    }}
-                    className="h-9 shrink-0 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] whitespace-nowrap cursor-pointer"
-                  >
-                    Rekap Periode {dayPeriod}
-                  </button>
-                )}
-                {!isDayLocked && (
-                  <button
-                    type="button"
-                    disabled={sync.isSyncing}
-                    onClick={handleSaveOmset}
-                    className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-4 text-xs font-semibold text-white transition disabled:opacity-65 whitespace-nowrap cursor-pointer ${
-                      hasUnsavedOmset
-                        ? 'bg-[#f59e0b] hover:bg-[#d97706]'
-                        : 'bg-[#2eb86b] hover:bg-[#259f5b]'
-                    }`}
-                  >
-                    {sync.isSyncing ? (
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Save className="h-3.5 w-3.5" />
-                    )}
-                    <span>{hasUnsavedOmset ? 'Simpan Perubahan' : 'Simpan Omset'}</span>
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      )}
 
       {/* ── MODAL: KONFIRMASI & VALIDASI CLOSING PERIODE ── */}
       {closingModalPeriod && closingValidation && (

@@ -7,7 +7,19 @@ import { getOmsetMonthSummary } from '../domain/omsetCalculations';
 import { getDayInputSummary, getStockDashboardSummary } from '../domain/stockCalculations';
 
 export const FloatingAlerts: React.FC = () => {
-  const { state, activeMenu, inputTab, ym, day, curYm, nowDay, absDraft, navigateTo } = useApp();
+  const {
+    state,
+    activeMenu,
+    inputTab,
+    abSub,
+    isViewer,
+    ym,
+    day,
+    curYm,
+    nowDay,
+    absDraft,
+    navigateTo,
+  } = useApp();
   const [open, setOpen] = useState(false);
 
   const alerts = useMemo(() => {
@@ -88,7 +100,7 @@ export const FloatingAlerts: React.FC = () => {
         desc: `Di bawah batas minimum: ${stock.lowStockItems
           .map((s) => `${s.item.nama} (sisa ${formatNum(s.val)}, min ${formatNum(s.item.min)})`)
           .join(', ')}.`,
-        actionLabel: 'Buka Input Harian',
+        actionLabel: 'Buka Stok & Input',
         onAction: () => {
           setOpen(false);
           navigateTo('in', { day: stock.today, inputTab: 'datang' });
@@ -129,8 +141,8 @@ export const FloatingAlerts: React.FC = () => {
       });
     }
 
-    // 7. Draft absensi belum disimpan
-    if (dayAbs.hasDraft) {
+    // 7. Draft absensi belum disimpan (tampilkan saat tidak sedang berada di layar input Absen Harian)
+    if (dayAbs.hasDraft && !(activeMenu === 'ab' && abSub === 'harian')) {
       items.push({
         id: 'abs-draft',
         title: 'Perubahan absensi belum disimpan',
@@ -144,16 +156,23 @@ export const FloatingAlerts: React.FC = () => {
     }
 
     return items;
-  }, [state, activeMenu, inputTab, ym, day, curYm, nowDay, absDraft, navigateTo]);
+  }, [state, activeMenu, inputTab, abSub, ym, day, curYm, nowDay, absDraft, navigateTo]);
 
   if (alerts.length === 0) return null;
+
+  const bottomPositionClass =
+    activeMenu === 'ab'
+      ? 'right-6 bottom-[84px]'
+      : isViewer
+        ? 'right-5 bottom-16'
+        : 'right-5 bottom-5';
 
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="no-print fixed right-5 bottom-5 z-50 flex items-center gap-2.5 rounded-2xl bg-white px-4 py-2.5 text-xs font-semibold text-[#13222b] shadow-[0_10px_28px_rgba(13,37,48,0.12)] transition hover:bg-[#f7faf9] cursor-pointer"
+        className={`no-print fixed ${bottomPositionClass} z-50 flex items-center gap-2.5 rounded-2xl bg-white px-4 py-2.5 text-xs font-semibold text-[#13222b] shadow-[0_10px_28px_rgba(13,37,48,0.12)] transition hover:bg-[#f7faf9] cursor-pointer`}
       >
         <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#fef3c7] text-[#b45309]">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />

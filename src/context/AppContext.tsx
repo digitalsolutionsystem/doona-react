@@ -1,11 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_SATUAN, normalizeAppData } from '../constants/defaults';
 import {
-  SHIFT_PRESETS,
   getActiveEmployees,
   getArchivedEmployees,
   getCurrentTimeHHMM,
   getEmployees,
+  getShiftPresets,
+  getShiftScheduleConfig,
+  writeStoredShiftConfig,
 } from '../domain/attendanceCalculations';
 import { formatDateKey, getDaysInMonth, getTodayParts, shiftDay, shiftMonth } from '../domain/dateUtils';
 import {
@@ -68,6 +70,8 @@ import type {
   OmsetDayRecord,
   OmsetSubTab,
   PayrollCycle,
+  PengaturanSubTab,
+  ShiftScheduleConfig,
   UserProfile,
 } from '../types/app';
 
@@ -145,6 +149,8 @@ interface AppContextValue {
   setAbSub: (s: AbsensiSubTab) => void;
   abCycle: PayrollCycle;
   setAbCycle: (c: PayrollCycle) => void;
+  pgSub: PengaturanSubTab;
+  setPgSub: (s: PengaturanSubTab) => void;
   absDraft: AttendanceDraftMap;
   setAbsDraft: React.Dispatch<React.SetStateAction<AttendanceDraftMap>>;
   hasAbsDraft: boolean;
@@ -243,6 +249,7 @@ interface AppContextValue {
     targetDay: number
   ) => Promise<{ ok: boolean; error?: string }>;
   saveEmployee: (input: SaveEmployeeInput) => { ok: boolean; error?: string };
+  updateShiftConfig: (config: ShiftScheduleConfig) => void;
   toggleEmployeeActive: (empId: string) => void;
   archiveEmployee: (empId: string) => void;
   restoreArchivedEmployee: (empId: string) => void;
@@ -311,6 +318,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [omPeriod, setOmPeriod] = useState<0 | 1 | 2>(0);
   const [abSub, setAbSub] = useState<AbsensiSubTab>('harian');
   const [abCycle, setAbCycle] = useState<PayrollCycle>(todayInit.day <= 15 ? 'p1' : 'p2');
+  const [pgSub, setPgSub] = useState<PengaturanSubTab>('uiux');
   const [absDraft, setAbsDraft] = useState<AttendanceDraftMap>({});
   const [absSaving, setAbsSaving] = useState<boolean>(false);
   const [absUnsent, setAbsUnsent] = useState<boolean>(false);
@@ -1237,7 +1245,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAbsDraft((prev) => {
         const base = getEffectiveDraftRecord(prev, targetYm, targetDay, empId);
         const shift: AttendanceShift = base.shift || 'Full';
-        const preset = SHIFT_PRESETS[shift];
+        const preset = getShiftPresets(stateRef.current)[shift];
         const nextRec: AttendanceRecord = { ...base, status, shift };
         if (status === 'Hadir') {
           if (!nextRec.checkIn && preset?.start) {
@@ -1341,7 +1349,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAbsDraft((prev) => {
         const base = getEffectiveDraftRecord(prev, targetYm, targetDay, empId);
         const shift: AttendanceShift = base.shift || 'Full';
-        const preset = SHIFT_PRESETS[shift];
+        const preset = getShiftPresets(stateRef.current)[shift];
         return {
           ...prev,
           [dk]: {
@@ -1452,7 +1460,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           const base = getEffectiveDraftRecord(prev, targetYm, targetDay, emp.id);
           const shift: AttendanceShift = base.shift || emp.shiftDefault || 'Full';
-          const preset = SHIFT_PRESETS[shift];
+          const preset = getShiftPresets(stateRef.current)[shift];
           const nextRec: AttendanceRecord = {
             ...base,
             status: 'Hadir',
@@ -1476,6 +1484,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
     },
     [getEffectiveDraftRecord, isViewer]
+  );
+
+  const updateShiftConfig = useCallback(
+    (config: ShiftScheduleConfig) => {
+      if (isViewer) return;
+      const sanitized = getShiftScheduleConfig({
+        ...stateRef.current,
+        shiftConfig: config,
+      });
+      writeStoredShiftConfig(sanitized);
+      updateState(
+        (prev) => ({
+          ...prev,
+          shiftConfig: sanitized,
+        }),
+        true
+      );
+    },
+    [isViewer, updateState]
   );
 
   const buildCommittedAttendanceRecord = (
@@ -2331,15 +2358,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const navigateTo = useCallback(
     (menu: MenuId, opts?: NavigationOptions) => {
-      if (activeMenu === 'in' && menu !== 'in' && hasUnsavedIn && !isViewer) {
-        setHasUnsavedIn(false);
-        void saveNow(stateRef.current);
+      const targetMenu: MenuId = menu === 'aw' ? 'in' : menu === 'db' ? 'pg' : menu;
+      const targetInputTab = menu === 'aw' ? 'awal' : opts?.inputTab;
+      const targetPgSub = menu === 'db' ? 'db' : opts?.pgSub;
+
+      if (activeMenu === 'in' && targetMenu !== 'in' && !isViewer) {
+        if (hasUnsavedIn || hasUnsavedAwal) {
+          setHasUnsavedIn(false);
+          setHasUnsavedAwal(false);
+          void saveNow(stateRef.current);
+        }
       }
-      if (activeMenu === 'aw' && menu !== 'aw' && hasUnsavedAwal && !isViewer) {
-        setHasUnsavedAwal(false);
-        void saveNow(stateRef.current);
-      }
-      if (activeMenu === 'om' && menu !== 'om' && hasUnsavedOmset && !isViewer) {
+      if (activeMenu === 'om' && targetMenu !== 'om' && hasUnsavedOmset && !isViewer) {
         setHasUnsavedOmset(false);
         void saveNow(stateRef.current);
       }
@@ -2349,12 +2379,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const targetYm = opts.ym || ym;
         setDay(Math.min(Math.max(1, opts.day), getDaysInMonth(targetYm)));
       }
-      if (opts?.inputTab) setInputTab(opts.inputTab);
+      if (targetInputTab) setInputTab(targetInputTab);
       if (opts?.omSub) setOmSub(opts.omSub);
       if (opts?.omPeriod !== undefined) setOmPeriod(opts.omPeriod);
       if (opts?.abSub) setAbSub(opts.abSub);
       if (opts?.abCycle) setAbCycle(opts.abCycle);
-      setActiveMenu(menu);
+      if (targetPgSub) setPgSub(targetPgSub);
+      setActiveMenu(targetMenu);
     },
     [activeMenu, hasUnsavedAwal, hasUnsavedIn, hasUnsavedOmset, isViewer, saveNow, ym]
   );
@@ -2558,6 +2589,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAbSub,
       abCycle,
       setAbCycle,
+      pgSub,
+      setPgSub,
       absDraft,
       setAbsDraft,
       hasAbsDraft,
@@ -2606,6 +2639,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       saveSingleAttendanceRow,
       saveAttendanceDay,
       saveEmployee,
+      updateShiftConfig,
       toggleEmployeeActive,
       archiveEmployee,
       restoreArchivedEmployee,
@@ -2646,6 +2680,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       omPeriod,
       abSub,
       abCycle,
+      pgSub,
       absDraft,
       hasAbsDraft,
       absSaving,
@@ -2691,6 +2726,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       saveSingleAttendanceRow,
       saveAttendanceDay,
       saveEmployee,
+      updateShiftConfig,
       toggleEmployeeActive,
       archiveEmployee,
       restoreArchivedEmployee,

@@ -1,22 +1,31 @@
 @import "tailwindcss";
 
 :root {
-  --sidebar-w: 228px;
-  --sidebar-cw: 72px;
-  --sidebar-gap: 12px;
-  --sidebar-bg: #0d2530;
-  --sidebar-border: #193a49;
-  --sidebar-text: #d7e3e8;
-  --sidebar-hover: #153644;
+  --sidebar-w: 236px;
+  --sidebar-cw: 76px;
+  --sidebar-gap: 0px;
+  --sidebar-bg: #101316;
+  --sidebar-border: #6b7c90;
+  --sidebar-text: #cbd5e1;
+  --sidebar-hover: rgba(255, 255, 255, 0.07);
   --accent: #2eb86b;
-  --accent-dark: #14533c;
+  --accent-hover: #259f5b;
+  --accent-dark: #15803d;
+  --accent-deep: #14533c;
   --accent-soft: #e6f7ee;
-  --bg: #eef3f1;
-  --surface: #ffffff;
-  --surface-subtle: #f4f7f6;
+  --accent-soft-2: #f2fbf6;
+  --accent-soft-hover: #d1f2e0;
+  --accent-border: #bbf7d0;
+  --accent-ring-20: rgba(46, 184, 107, 0.22);
+  --accent-fg: #ffffff;
+  --bg: #edf2ef;
+  --surface: #fbfaf2;
+  --surface-lifted: #fefdf8;
+  --surface-subtle: #f5f4ea;
   --border: #cfd8d4;
   --border-strong: #94a39e;
   --border-subtle: #e2ebe7;
+  --charcoal-outline: #4a535e;
   --ink: #13222b;
   --ink-secondary: #334155;
   --muted: #64748b;
@@ -50,12 +59,13 @@
   }
 
   button:focus-visible,
-  a:focus-visible,
-  input:focus-visible,
-  select:focus-visible,
-  textarea:focus-visible {
-    outline: 2px solid #2eb86b;
-    outline-offset: 1px;
+  a:focus-visible {
+    outline: none;
+  }
+
+  .dg-sidebar button:focus,
+  .dg-sidebar button:focus-visible {
+    outline: none;
   }
 }
 
@@ -70,21 +80,24 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Floating Rounded Deep-Teal Sidebar (Sample Style) */
+/* Flush Obsidian Sidebar with Curved Cutout Active Notch */
 .dg-sidebar {
   width: var(--sidebar-w);
   position: fixed;
-  top: var(--sidebar-gap);
-  left: var(--sidebar-gap);
-  bottom: var(--sidebar-gap);
+  top: 0;
+  left: 0;
+  bottom: 0;
   z-index: 100;
   background: var(--sidebar-bg);
-  border-radius: 20px;
-  box-shadow: 0 12px 32px rgba(13, 37, 48, 0.18);
+  border-radius: 0;
   display: flex;
   flex-direction: column;
   overflow: visible;
-  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translate3d(0, 0, 0);
+  transition:
+    width 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, width;
 }
 
 .dg-sidebar.collapsed {
@@ -97,13 +110,13 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  border-radius: 20px;
   overflow: hidden;
 }
 
 .dg-nav-section {
   position: relative;
-  padding: 10px 0 16px;
+  z-index: 2;
+  padding: 18px 0 26px;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
@@ -113,29 +126,98 @@
   width: 0;
 }
 
+/* Smooth gliding curved cutout active notch */
+.dg-active-notch {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  pointer-events: none;
+  will-change: transform, height;
+}
+
+.dg-active-notch.dg-notch-animated {
+  transition:
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* Main Workspace Canvas */
 .dg-content {
-  margin-left: calc(var(--sidebar-w) + var(--sidebar-gap));
+  margin-left: var(--sidebar-w);
   display: flex;
   flex-direction: column;
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
   background: var(--bg);
-  transition: margin-left 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: margin-left 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .dg-content.sidebar-collapsed {
-  margin-left: calc(var(--sidebar-cw) + var(--sidebar-gap));
+  margin-left: var(--sidebar-cw);
 }
 
 .dg-main {
   display: flex;
   flex-direction: column;
   flex: 1 1 0%;
-  height: 100%;
-  max-height: 100%;
+  min-height: 0;
   overflow: hidden;
+}
+
+/* Smooth directional workspace page transition */
+.dg-workspace-stage {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  height: 100%;
+  min-height: 0;
+}
+
+.dg-workspace-enter-down {
+  animation: dgWorkspaceEnterDown 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.dg-workspace-enter-up {
+  animation: dgWorkspaceEnterUp 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes dgWorkspaceEnterDown {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.996);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dgWorkspaceEnterUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -14px, 0) scale(0.996);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dg-sidebar,
+  .dg-content,
+  .dg-active-notch.dg-notch-animated {
+    transition: none !important;
+  }
+
+  .dg-workspace-enter-down,
+  .dg-workspace-enter-up,
+  .dg-header-content-enter {
+    animation: none !important;
+  }
 }
 
 .dg-page {
@@ -148,19 +230,47 @@
   background: var(--bg);
 }
 
+.dg-persistent-header-wrap {
+  position: relative;
+  z-index: 40;
+  flex-shrink: 0;
+  background: rgba(237, 242, 239, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.dg-persistent-header {
+  display: flex;
+  align-items: center;
+  min-height: 68px;
+}
+
+.dg-header-content-enter {
+  animation: dgHeaderContentFade 0.16s ease-out both;
+}
+
+@keyframes dgHeaderContentFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .dg-sticky-header {
   position: sticky;
   top: 0;
   z-index: 30;
   flex-shrink: 0;
-  background: rgba(238, 243, 241, 0.94);
+  background: rgba(237, 242, 239, 0.94);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
-/* Striped emerald progress fill (Sample Finance Summary bar) */
+/* Striped accent progress fill */
 .dg-striped-bar {
-  background-color: #2eb86b;
+  background-color: var(--accent);
   background-image: repeating-linear-gradient(
     -55deg,
     rgba(255, 255, 255, 0.28) 0px,
@@ -168,6 +278,183 @@
     transparent 4px,
     transparent 9px
   );
+}
+
+/* Unified bold soft-charcoal outer outline on every outermost element across all menus */
+.dg-persistent-header-wrap .rounded-2xl,
+.dg-page .rounded-2xl:not(.h-12.w-12),
+.fixed .rounded-2xl:not(.h-12.w-12),
+.fixed.rounded-2xl {
+  border: 2.5px solid var(--charcoal-outline);
+}
+
+/* Crisp soft-charcoal outline on all interactive controls & badges inside the header across every menu */
+.dg-persistent-header
+  .dg-header-content-enter
+  :is(
+    button.rounded-xl,
+    button.rounded-lg,
+    button.rounded-full,
+    select,
+    input.rounded-xl,
+    input.rounded-lg,
+    div.rounded-xl,
+    div.rounded-lg,
+    div.rounded-full,
+    span.rounded-xl,
+    span.rounded-lg,
+    span.rounded-full
+  ):not(.dg-header-content-enter .rounded-xl *):not(.dg-header-content-enter .rounded-lg *):not(
+    .dg-header-content-enter .rounded-2xl *
+  ):not(.dg-header-content-enter button *) {
+  border: 1.5px solid var(--charcoal-outline);
+}
+
+/* Crisp data table framing & contrast across all standard workspace tables */
+.dg-page .rounded-2xl:has(table:not(.dg-matrix-table)) {
+  border: 2.5px solid var(--charcoal-outline);
+  box-shadow: 0 8px 24px rgba(13, 37, 48, 0.065);
+}
+
+.dg-page .rounded-xl:has(> table:not(.dg-matrix-table)) {
+  border: 1px solid #c5d4ce;
+}
+
+.dg-page table:not(.dg-matrix-table) thead,
+.dg-page table:not(.dg-matrix-table) thead tr {
+  background-color: #e5efec;
+  color: #132b36;
+}
+
+.dg-page table:not(.dg-matrix-table) thead th {
+  color: #132b36;
+  border-bottom: 2px solid #b5c7c0;
+}
+
+.dg-page table:not(.dg-matrix-table) tbody td {
+  border-bottom: 1px solid #d6e2de;
+}
+
+.dg-page table:not(.dg-matrix-table) tbody tr:last-child td {
+  border-bottom-color: transparent;
+}
+
+.dg-page table:not(.dg-matrix-table) tbody tr:nth-child(even):not([class*="bg-"]) {
+  background-color: var(--surface-subtle);
+}
+
+.dg-page table:not(.dg-matrix-table) tbody tr:not([class*="bg-"]):hover {
+  background-color: var(--accent-soft);
+}
+
+/* Warm pale-cream surface & dynamic accent overrides across all menus */
+@layer utilities {
+  .bg-white {
+    background-color: var(--surface);
+  }
+
+  .hover\:bg-white:hover {
+    background-color: var(--surface-lifted);
+  }
+
+  .focus\:bg-white:focus {
+    background-color: var(--surface-lifted);
+  }
+
+  .focus-within\:bg-white:focus-within {
+    background-color: var(--surface-lifted);
+  }
+
+  .bg-\[\#f7faf9\],
+  .bg-\[\#f6faf8\] {
+    background-color: var(--surface-subtle);
+  }
+
+  .hover\:bg-\[\#f7faf9\]:hover {
+    background-color: var(--surface-subtle);
+  }
+
+  /* Primary solid accent backgrounds */
+  .bg-\[\#2eb86b\],
+  .bg-\[\#14a38b\] {
+    background-color: var(--accent);
+  }
+
+  .bg-\[\#2eb86b\].text-white,
+  .bg-\[\#14a38b\].text-white {
+    color: var(--accent-fg);
+  }
+
+  .hover\:bg-\[\#259f5b\]:hover {
+    background-color: var(--accent-hover);
+  }
+
+  /* Accent text tones */
+  .text-\[\#2eb86b\],
+  .text-\[\#14a38b\] {
+    color: var(--accent);
+  }
+
+  .text-\[\#15803d\],
+  .hover\:text-\[\#15803d\]:hover,
+  .focus\:text-\[\#15803d\]:focus {
+    color: var(--accent-dark);
+  }
+
+  .text-\[\#15803d\]\/85 {
+    color: color-mix(in srgb, var(--accent-dark) 85%, transparent);
+  }
+
+  .text-\[\#14533c\],
+  .group:hover .group-hover\:text-\[\#14533c\] {
+    color: var(--accent-deep);
+  }
+
+  /* Soft accent tinted surfaces */
+  .bg-\[\#e6f7ee\],
+  .hover\:bg-\[\#e6f7ee\]:hover,
+  .hover\:bg-\[\#e7f4ed\]:hover,
+  .hover\:bg-\[\#e8f5ee\]:hover {
+    background-color: var(--accent-soft);
+  }
+
+  .bg-\[\#f2fbf6\] {
+    background-color: var(--accent-soft-2);
+  }
+
+  .hover\:bg-\[\#d1f2e0\]:hover,
+  .hover\:bg-\[\#d1f0e0\]:hover {
+    background-color: var(--accent-soft-hover);
+  }
+
+  /* Accent borders */
+  .border-\[\#2eb86b\],
+  .hover\:border-\[\#2eb86b\]:hover,
+  .focus\:border-\[\#2eb86b\]:focus,
+  .focus-within\:border-\[\#2eb86b\]:focus-within {
+    border-color: var(--accent);
+  }
+
+  .border-\[\#bbf7d0\],
+  .border-\[\#d1f0e0\] {
+    border-color: var(--accent-border);
+  }
+
+  /* Accent focus rings & form controls */
+  .ring-\[\#2eb86b\],
+  .focus\:ring-\[\#2eb86b\]:focus {
+    --tw-ring-color: var(--accent);
+  }
+
+  .ring-\[\#2eb86b\]\/20,
+  .focus\:ring-\[\#2eb86b\]\/20:focus,
+  .focus-within\:ring-\[\#2eb86b\]\/20:focus-within {
+    --tw-ring-color: var(--accent-ring-20);
+  }
+
+  .accent-\[\#2eb86b\] {
+    accent-color: var(--accent);
+  }
 }
 
 /* Crisp visible scrollbars */
@@ -204,11 +491,13 @@
   }
 
   .dg-sidebar.mobile-open {
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
+    pointer-events: auto;
   }
 
   .dg-content,
-  .dg-content.sidebar-collapsed {
+  .dg-content.sidebar-collapsed,
+  .dg-content.sidebar-hidden {
     margin-left: 0;
     height: auto;
     min-height: 100dvh;
@@ -217,6 +506,7 @@
   }
 
   .dg-main,
+  .dg-workspace-stage,
   .dg-page {
     height: auto;
     max-height: none;
@@ -225,6 +515,11 @@
 }
 
 @media (max-width: 767px) {
+  .dg-persistent-header-wrap {
+    position: sticky;
+    top: 52px;
+  }
+
   .dg-sticky-header {
     top: 52px;
   }

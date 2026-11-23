@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { PageHeader } from '../components/PageHeader';
 import {
   AlertTriangle,
   Archive,
@@ -22,6 +24,7 @@ import {
   RotateCcw,
   Save,
   Search,
+  SlidersHorizontal,
   UserCheck,
   Users,
   Wallet,
@@ -32,8 +35,7 @@ import { DAY_NAMES, MONTH_NAMES } from '../constants/defaults';
 import { useApp } from '../context/AppContext';
 import {
   ATTENDANCE_STATUSES,
-  SHIFT_LIST,
-  SHIFT_PRESETS,
+  DEFAULT_SHIFT_CONFIG,
   buildRekapSlipWA,
   buildSingleEmpSlipWA,
   calcAttendanceRecordPay,
@@ -49,6 +51,9 @@ import {
   getEmployees,
   getEmployeesForPayrollPeriod,
   getPayrollRange,
+  getShiftList,
+  getShiftPresets,
+  getShiftScheduleConfig,
   isEmployeeArchived,
 } from '../domain/attendanceCalculations';
 import {
@@ -67,6 +72,8 @@ import type {
   AttendanceStatus,
   Employee,
   PayrollCycle,
+  ScheduledShiftId,
+  ShiftScheduleConfig,
 } from '../types/app';
 
 const STATUS_BUTTON_ACTIVE: Record<AttendanceStatus, string> = {
@@ -124,6 +131,7 @@ export const AbsensiGajiPage: React.FC = () => {
     saveSingleAttendanceRow,
     saveAttendanceDay,
     saveEmployee,
+    updateShiftConfig,
     toggleEmployeeActive,
     archiveEmployee,
     restoreArchivedEmployee,
@@ -163,6 +171,39 @@ export const AbsensiGajiPage: React.FC = () => {
 
   const [archiveTarget, setArchiveTarget] = useState<Employee | null>(null);
   const [waModal, setWaModal] = useState<{ title: string; text: string } | null>(null);
+  const [shiftModalOpen, setShiftModalOpen] = useState<boolean>(false);
+  const [shiftForm, setShiftForm] = useState<ShiftScheduleConfig>(() =>
+    getShiftScheduleConfig(state)
+  );
+
+  const shiftConfig = useMemo(() => getShiftScheduleConfig(state), [state]);
+  const shiftPresets = useMemo(() => getShiftPresets(state), [state]);
+  const shiftList = useMemo(() => getShiftList(state), [state]);
+
+  const openShiftModal = () => {
+    setShiftForm({
+      Full: { ...shiftConfig.Full },
+      Pagi: { ...shiftConfig.Pagi },
+      Siang: { ...shiftConfig.Siang },
+    });
+    setShiftModalOpen(true);
+  };
+
+  const handleSaveShiftConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isViewer) return;
+    updateShiftConfig(shiftForm);
+    setShiftModalOpen(false);
+    showToast('Pengaturan jam kerja (Start–Finish) berhasil disimpan.');
+  };
+
+  const handleResetShiftDefaults = () => {
+    setShiftForm({
+      Full: { ...DEFAULT_SHIFT_CONFIG.Full },
+      Pagi: { ...DEFAULT_SHIFT_CONFIG.Pagi },
+      Siang: { ...DEFAULT_SHIFT_CONFIG.Siang },
+    });
+  };
 
   const nd = getDaysInMonth(ym);
   const yearNum = getYear(ym);
@@ -470,9 +511,8 @@ export const AbsensiGajiPage: React.FC = () => {
 
   return (
     <div className="dg-page">
-      {/* STICKY FLOATING TOP TOOLBAR */}
-      <div className="dg-sticky-header no-print px-4 pt-3 pb-1 md:px-6">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] md:px-5">
+      {/* PERSISTENT STATIONARY TOP TOOLBAR */}
+      <PageHeader>
         {abSub === 'harian' ? (
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center rounded-xl bg-[#f3f7f5] p-0.5">
@@ -532,50 +572,71 @@ export const AbsensiGajiPage: React.FC = () => {
           </div>
         )}
 
-        {/* SUB-TAB SWITCHER */}
-        <div
-          className="flex items-center gap-1 overflow-x-auto rounded-xl bg-[#f3f7f5] p-1"
-          role="tablist"
-          aria-label="Submenu Absensi & Gaji"
-        >
-          {(
-            [
-              { id: 'harian', label: 'Absen', icon: Calendar },
-              { id: 'kalender', label: 'Kalender', icon: CalendarDays },
-              { id: 'karyawan', label: 'Karyawan', icon: Users },
-              { id: 'rekap', label: 'Rekap gaji', icon: Wallet },
-            ] as Array<{
-              id: AbsensiSubTab;
-              label: string;
-              icon: React.ComponentType<{ className?: string }>;
-            }>
-          ).map((tab) => {
-            const Icon = tab.icon;
-            const isOn = activeTabKey === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={isOn}
-                onClick={() => {
-                  if (tab.id === 'kalender') setCalSelDay(Math.min(day, nd));
-                  setAbSub(tab.id);
-                }}
-                className={`flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                  isOn
-                    ? 'bg-[#2eb86b] text-white shadow-xs'
-                    : 'text-[#64748b] hover:text-[#13222b]'
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+        {/* LIVE CLOCK + WORK HOURS SETTING + SUB-TAB SWITCHER */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-3 text-white shadow-xs whitespace-nowrap">
+            <Clock className="h-3.5 w-3.5 shrink-0 opacity-90" />
+            <span className="font-mono-num text-xs font-bold tracking-tight">{nowClock}</span>
+            {abSub === 'harian' && (
+              <span className="text-[11px] font-medium opacity-85">
+                · {isViewingToday ? 'Hari ini' : 'Tanggal lain'}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={openShiftModal}
+            title="Atur jam mulai & selesai kerja setiap shift"
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] whitespace-nowrap cursor-pointer"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5 text-[#15803d]" />
+            <span>Jam Kerja</span>
+          </button>
+
+          <div
+            className="flex items-center gap-1 overflow-x-auto rounded-xl bg-[#f3f7f5] p-1"
+            role="tablist"
+            aria-label="Submenu Absensi & Gaji"
+          >
+            {(
+              [
+                { id: 'harian', label: 'Absen', icon: Calendar },
+                { id: 'kalender', label: 'Kalender', icon: CalendarDays },
+                { id: 'karyawan', label: 'Karyawan', icon: Users },
+                { id: 'rekap', label: 'Rekap gaji', icon: Wallet },
+              ] as Array<{
+                id: AbsensiSubTab;
+                label: string;
+                icon: React.ComponentType<{ className?: string }>;
+              }>
+            ).map((tab) => {
+              const Icon = tab.icon;
+              const isOn = activeTabKey === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isOn}
+                  onClick={() => {
+                    if (tab.id === 'kalender') setCalSelDay(Math.min(day, nd));
+                    setAbSub(tab.id);
+                  }}
+                  className={`flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                    isOn
+                      ? 'bg-[#2eb86b] text-white shadow-xs'
+                      : 'text-[#64748b] hover:text-[#13222b]'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-        </header>
-      </div>
+      </PageHeader>
 
       {/* FLOATING TOAST / DB ERROR BANNER */}
       {(toast || absSaveError) && (
@@ -624,35 +685,13 @@ export const AbsensiGajiPage: React.FC = () => {
           {/* ─────────────────── TAB 1: ABSENSI HARIAN (HRIS WORKSPACE) ─────────────────── */}
           {abSub === 'harian' && (
             <div className="space-y-4">
-              {/* OPERATIONAL HEADER & LIVE CLOCK */}
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-display text-lg font-bold tracking-[-0.015em] text-[#13222b]">
-                    Absensi {DAY_NAMES[getDayOfWeek(ym, day)]}, {day} {monthLabel}
-                  </h2>
-                  <p className="mt-0.5 text-xs text-[#64748b]">
-                    Log check-in/out shift, kalkulasi keterlambatan &amp; durasi kerja otomatis ·
-                    Gaji pokok dihitung pada status Hadir
-                  </p>
+              {dailyModel.draftDayCount > 0 && (
+                <div className="flex items-center justify-end text-xs">
+                  <span className="font-semibold text-[#b45309]">
+                    Draf belum diverifikasi ({dailyModel.draftDayCount} tanggal)
+                  </span>
                 </div>
-
-                <div className="flex flex-wrap items-center gap-3 text-xs">
-                  {dailyModel.draftDayCount > 0 && (
-                    <span className="font-semibold text-[#b45309]">
-                      Draf belum diverifikasi ({dailyModel.draftDayCount} tanggal)
-                    </span>
-                  )}
-                  <div className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 shadow-[0_6px_22px_rgba(13,37,48,0.045)]">
-                    <Clock className="h-3.5 w-3.5 text-[#2eb86b]" />
-                    <span className="font-mono-num text-xs font-bold text-[#13222b]">
-                      {nowClock}
-                    </span>
-                    <span className="text-[11px] text-[#64748b]">
-                      · {isViewingToday ? 'Hari ini' : 'Tanggal lain'}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              )}
 
               {activeEmployees.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-2xl bg-white py-14 text-center shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
@@ -674,118 +713,96 @@ export const AbsensiGajiPage: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  {/* 4 FLOATING HRIS KPI CARDS */}
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    {/* KPI 1: Kehadiran */}
-                    <div className="rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] sm:p-5">
-                      <div className="flex items-center justify-between text-xs font-semibold text-[#64748b]">
-                        <span>Tingkat Kehadiran</span>
-                        <span className="font-mono-num font-bold text-[#15803d]">
+                  {/* 4 COMPACT SOLID HRIS KPI CARDS */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {/* KPI 1: Kehadiran (Solid Emerald) */}
+                    <div className="rounded-2xl bg-[#157f5d] px-4 py-2.5 text-white shadow-[0_6px_18px_rgba(13,37,48,0.08)]">
+                      <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-white/85">
+                        <span className="truncate">Kehadiran</span>
+                        <span className="font-mono-num shrink-0 font-bold text-white">
                           {attendancePct}%
                         </span>
                       </div>
-                      <div className="font-mono-num mt-1.5 text-2xl font-bold text-[#13222b]">
-                        {dailyModel.hadir}
-                        <span className="text-sm font-medium text-[#64748b]">
-                          /{activeEmployees.length} hadir
-                        </span>
-                      </div>
-                      <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-[#edf2f0]">
-                        <div
-                          className="h-full rounded-full bg-[#2eb86b] transition-all duration-200"
-                          style={{ width: `${attendancePct}%` }}
-                        />
-                      </div>
-                      <div className="mt-2 flex items-center gap-1.5 text-[11.5px] text-[#64748b]">
-                        <span>Tercatat {dailyModel.recordedCount}</span>
-                        <span aria-hidden="true">·</span>
-                        <span
-                          className={
-                            dailyModel.unrecordedCount > 0 ? 'font-semibold text-[#b45309]' : ''
-                          }
-                        >
-                          Belum absen {dailyModel.unrecordedCount}
+                      <div className="mt-1 flex items-baseline justify-between gap-2">
+                        <div className="font-mono-num text-lg leading-tight font-bold text-white">
+                          {dailyModel.hadir}
+                          <span className="text-xs font-medium text-white/80">
+                            /{activeEmployees.length} hadir
+                          </span>
+                        </div>
+                        <span className="font-mono-num shrink-0 text-[11px] font-medium text-white/85">
+                          {dailyModel.unrecordedCount > 0
+                            ? `Belum ${dailyModel.unrecordedCount}`
+                            : `Tercatat ${dailyModel.recordedCount}`}
                         </span>
                       </div>
                     </div>
 
-                    {/* KPI 2: Ketepatan & Jam Kerja */}
-                    <div className="rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] sm:p-5">
-                      <div className="text-xs font-semibold text-[#64748b]">
-                        Ketepatan &amp; Jam Kerja
-                      </div>
-                      <div className="font-mono-num mt-1.5 text-2xl font-bold text-[#13222b]">
-                        {dailyModel.avgWorkMinutes !== null
-                          ? formatDurationLabel(dailyModel.avgWorkMinutes)
-                          : dailyModel.hadir > 0
-                            ? 'Aktif'
-                            : '–'}
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-[#64748b]">
-                        <span className="font-semibold text-[#15803d]">
-                          Tepat waktu {dailyModel.onTimeCount}
+                    {/* KPI 2: Ketepatan & Jam Kerja (Solid Cobalt Blue) */}
+                    <div className="rounded-2xl bg-[#1d5fa7] px-4 py-2.5 text-white shadow-[0_6px_18px_rgba(13,37,48,0.08)]">
+                      <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-white/85">
+                        <span className="truncate">Jam Kerja</span>
+                        <span className="font-mono-num shrink-0 font-semibold text-white/95">
+                          Tepat {dailyModel.onTimeCount} · Telat {dailyModel.lateCount}
                         </span>
-                        <span aria-hidden="true">·</span>
-                        <span
-                          className={
-                            dailyModel.lateCount > 0
-                              ? 'font-semibold text-[#dc2626]'
-                              : 'text-[#64748b]'
-                          }
-                        >
-                          Terlambat {dailyModel.lateCount}
+                      </div>
+                      <div className="mt-1 flex items-baseline justify-between gap-2">
+                        <div className="font-mono-num text-lg leading-tight font-bold text-white">
+                          {dailyModel.avgWorkMinutes !== null
+                            ? formatDurationLabel(dailyModel.avgWorkMinutes)
+                            : dailyModel.hadir > 0
+                              ? 'Aktif'
+                              : '–'}
+                        </div>
+                        <span className="shrink-0 text-[11px] font-medium text-white/80">
+                          Rata-rata shift
                         </span>
                       </div>
                     </div>
 
-                    {/* KPI 3: Ketidakhadiran & Lembur */}
-                    <div className="rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] sm:p-5">
-                      <div className="flex items-center justify-between text-xs font-semibold text-[#64748b]">
-                        <span>Tidak Hadir &amp; Lembur</span>
-                        <span className="font-mono-num font-bold text-[#13222b]">
+                    {/* KPI 3: Tidak Hadir & Lembur (Solid Warm Amber) */}
+                    <div className="rounded-2xl bg-[#b85d0b] px-4 py-2.5 text-white shadow-[0_6px_18px_rgba(13,37,48,0.08)]">
+                      <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-white/85">
+                        <span className="truncate">Off &amp; Lembur</span>
+                        <span className="font-mono-num shrink-0 font-bold text-white">
                           {dailyModel.lembur} pkt lembur
                         </span>
                       </div>
-                      <div className="font-mono-num mt-1.5 text-2xl font-bold text-[#13222b]">
-                        {dailyModel.absent}
-                        <span className="ml-1.5 text-sm font-medium text-[#64748b]">
-                          orang off
+                      <div className="mt-1 flex items-baseline justify-between gap-2">
+                        <div className="font-mono-num text-lg leading-tight font-bold text-white">
+                          {dailyModel.absent}
+                          <span className="ml-1 text-xs font-medium text-white/80">off</span>
+                        </div>
+                        <span className="font-mono-num shrink-0 text-[11px] font-medium text-white/85">
+                          I {dailyModel.izin} · S {dailyModel.sakit} · A {dailyModel.alfa} · L{' '}
+                          {dailyModel.libur}
                         </span>
-                      </div>
-                      <div className="font-mono-num mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-[#64748b]">
-                        <span>Izin {dailyModel.izin}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>Sakit {dailyModel.sakit}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>Alfa {dailyModel.alfa}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>Libur {dailyModel.libur}</span>
                       </div>
                     </div>
 
-                    {/* KPI 4: Estimasi Gaji Hari Ini */}
-                    <div className="rounded-2xl bg-[#f2fbf6] p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] sm:p-5">
-                      <div className="flex items-center justify-between text-xs font-semibold text-[#15803d]">
-                        <span>Estimasi Payroll Hari Ini</span>
-                        <span className="font-mono-num">
+                    {/* KPI 4: Estimasi Payroll Hari Ini (Solid Deep Indigo) */}
+                    <div className="rounded-2xl bg-[#433878] px-4 py-2.5 text-white shadow-[0_6px_18px_rgba(13,37,48,0.08)]">
+                      <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-white/85">
+                        <span className="truncate">Payroll Hari Ini</span>
+                        <span className="font-mono-num shrink-0 font-bold text-white">
                           {dailyModel.saved}/{activeEmployees.length} sah
                         </span>
                       </div>
-                      <div className="font-mono-num mt-1.5 text-2xl font-bold text-[#15803d]">
-                        {formatRp(dailyModel.gaji)}
-                      </div>
-                      <div className="font-mono-num mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-[#15803d]/85">
-                        <span>Pokok {formatNum(dailyModel.gajiPokok)}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>Lembur {formatNum(dailyModel.uangLembur)}</span>
+                      <div className="mt-1 flex items-baseline justify-between gap-2">
+                        <div className="font-mono-num truncate text-lg leading-tight font-bold text-white">
+                          {formatRp(dailyModel.gaji)}
+                        </div>
+                        <span className="font-mono-num shrink-0 text-[11px] font-medium text-white/85">
+                          Lbr {formatNum(dailyModel.uangLembur)}
+                        </span>
                       </div>
                     </div>
                   </div>
 
                   {/* UNIFIED HRIS ATTENDANCE SHEET */}
-                  <div className="overflow-hidden rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
+                  <div className="overflow-hidden rounded-2xl border border-[#c5d4ce] bg-white shadow-[0_8px_24px_rgba(13,37,48,0.065)]">
                     {/* FILTER, SEARCH & BULK ACTIONS BAR */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f0] px-4 py-3 sm:px-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#cfdcd7] bg-[#f7faf9] px-4 py-3 sm:px-5">
                       <div className="flex flex-wrap items-center gap-2.5">
                         <div className="relative">
                           <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-[#64748b]" />
@@ -883,7 +900,7 @@ export const AbsensiGajiPage: React.FC = () => {
                     </div>
 
                     {/* DESKTOP COLUMN HEADERS */}
-                    <div className="hidden border-b border-[#edf2f0] bg-[#f7faf9] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.04em] text-[#64748b] xl:grid xl:grid-cols-[minmax(215px,1.25fr)_252px_minmax(220px,1.15fr)_116px_138px_132px_74px] xl:items-center xl:gap-3">
+                    <div className="hidden border-b-2 border-[#b5c7c0] bg-[#e5efec] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.04em] text-[#132b36] xl:grid xl:grid-cols-[minmax(215px,1.25fr)_252px_minmax(220px,1.15fr)_116px_138px_132px_74px] xl:items-center xl:gap-3">
                       <div>Karyawan &amp; Shift</div>
                       <div>Status Kehadiran</div>
                       <div>Log Waktu / Keterangan</div>
@@ -911,7 +928,7 @@ export const AbsensiGajiPage: React.FC = () => {
                         </button>
                       </div>
                     ) : (
-                      <div className="divide-y divide-[#edf2f0]">
+                      <div className="divide-y divide-[#d4e0dc]">
                         {filteredDailyRows.map((row) => {
                           const {
                             emp,
@@ -992,7 +1009,7 @@ export const AbsensiGajiPage: React.FC = () => {
                                         aria-label={`Shift ${emp.nama}`}
                                         onChange={(e) => {
                                           const nextShift = e.target.value as AttendanceShift;
-                                          const preset = SHIFT_PRESETS[nextShift];
+                                          const preset = shiftPresets[nextShift];
                                           updateAttendanceDraft(ym, day, emp.id, {
                                             status: effective?.status || 'Hadir',
                                             shift: nextShift,
@@ -1005,7 +1022,7 @@ export const AbsensiGajiPage: React.FC = () => {
                                         }}
                                         className="bg-transparent text-[11.5px] font-semibold text-[#475569] outline-none hover:text-[#13222b] focus:text-[#15803d] cursor-pointer disabled:cursor-default"
                                       >
-                                        {SHIFT_LIST.map((s) => (
+                                        {shiftList.map((s) => (
                                           <option key={s.id} value={s.id}>
                                             {s.shortLabel}
                                           </option>
@@ -1457,7 +1474,8 @@ export const AbsensiGajiPage: React.FC = () => {
                                 .map(({ emp, record, isArchived }) => {
                                   const late = calcLateMinutes(
                                     record?.shift || emp.shiftDefault,
-                                    record?.checkIn
+                                    record?.checkIn,
+                                    state
                                   );
                                   return (
                                     <div
@@ -1675,7 +1693,7 @@ export const AbsensiGajiPage: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-xs font-semibold text-[#475569] whitespace-nowrap">
-                            {SHIFT_PRESETS[emp.shiftDefault || 'Full'].shortLabel}
+                            {shiftPresets[emp.shiftDefault || 'Full'].shortLabel}
                           </td>
                           <td className="font-mono-num px-4 py-3 text-right font-bold text-[#13222b] whitespace-nowrap">
                             {formatRp(emp.gajiHarian)}
@@ -2190,7 +2208,8 @@ export const AbsensiGajiPage: React.FC = () => {
                               dr.rec?.status === 'Hadir'
                                 ? calcLateMinutes(
                                     dr.rec.shift || selectedEmployee.shiftDefault,
-                                    dr.rec.checkIn
+                                    dr.rec.checkIn,
+                                    state
                                   )
                                 : 0;
                             const durMins =
@@ -2452,38 +2471,39 @@ export const AbsensiGajiPage: React.FC = () => {
       </div>
 
       {/* ─────────────────── MODAL: TAMBAH / EDIT KARYAWAN ─────────────────── */}
-      {empModalOpen && (
-        <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setEmpModalOpen(false);
-          }}
-        >
-          <div className="w-full max-w-[460px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
-            <div className="flex items-center justify-between border-b border-[#edf2f0] px-5 py-4">
-              <div className="flex items-center gap-3">
-                <EmployeeAvatar nama={formNama || '?'} foto={formFoto} size="md" />
-                <div>
-                  <h3 className="font-display text-base font-bold text-[#13222b]">
-                    {editEmp ? 'Edit Data Karyawan' : 'Tambah Karyawan Baru'}
-                  </h3>
-                  <p className="text-xs text-[#64748b]">
-                    Atur nama, foto, gaji harian, tarif lembur, dan siklus gaji
-                  </p>
+      {empModalOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setEmpModalOpen(false);
+            }}
+          >
+            <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[460px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+              <div className="flex shrink-0 items-center justify-between border-b border-[#edf2f0] px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <EmployeeAvatar nama={formNama || '?'} foto={formFoto} size="md" />
+                  <div>
+                    <h3 className="font-display text-base font-bold text-[#13222b]">
+                      {editEmp ? 'Edit Data Karyawan' : 'Tambah Karyawan Baru'}
+                    </h3>
+                    <p className="text-xs text-[#64748b]">
+                      Atur nama, foto, gaji harian, tarif lembur, dan siklus gaji
+                    </p>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setEmpModalOpen(false)}
+                  aria-label="Tutup modal"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setEmpModalOpen(false)}
-                aria-label="Tutup modal"
-                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
 
-            <form onSubmit={handleSubmitEmployee}>
-              <div className="space-y-3.5 px-5 py-4">
+              <form onSubmit={handleSubmitEmployee} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto px-5 py-4">
                 {formError && (
                   <div className="rounded-xl bg-[#fee2e2] px-3 py-2 text-xs font-semibold text-[#b91c1c]">
                     {formError}
@@ -2527,7 +2547,7 @@ export const AbsensiGajiPage: React.FC = () => {
                       onChange={(e) => setFormShiftDefault(e.target.value as AttendanceShift)}
                       className="h-10 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-sm text-[#13222b] transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20 focus:outline-none"
                     >
-                      {SHIFT_LIST.map((s) => (
+                      {shiftList.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.label}
                         </option>
@@ -2620,7 +2640,7 @@ export const AbsensiGajiPage: React.FC = () => {
                 )}
               </div>
 
-              <div className="flex items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3.5">
+              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3.5">
                 <button
                   type="button"
                   onClick={() => setEmpModalOpen(false)}
@@ -2638,125 +2658,284 @@ export const AbsensiGajiPage: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
 
       {/* ─────────────────── MODAL: KONFIRMASI ARSIP KARYAWAN ─────────────────── */}
-      {archiveTarget && (
-        <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setArchiveTarget(null);
-          }}
-        >
-          <div className="w-full max-w-[420px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
-            <div className="flex items-center justify-between border-b border-[#edf2f0] px-5 py-4">
-              <div className="flex items-center gap-2">
-                <Archive className="h-4 w-4 text-[#ef4444]" />
-                <h3 className="font-display text-base font-bold text-[#13222b]">
-                  Arsipkan Karyawan
-                </h3>
+      {archiveTarget &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setArchiveTarget(null);
+            }}
+          >
+            <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[420px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+              <div className="flex shrink-0 items-center justify-between border-b border-[#edf2f0] px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <Archive className="h-4 w-4 text-[#ef4444]" />
+                  <h3 className="font-display text-base font-bold text-[#13222b]">
+                    Arsipkan Karyawan
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setArchiveTarget(null)}
+                  aria-label="Tutup"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setArchiveTarget(null)}
-                aria-label="Tutup"
-                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="px-5 py-4">
-              <p className="text-xs leading-relaxed text-[#475569]">
-                Arsipkan <strong className="text-[#13222b]">{archiveTarget.nama}</strong> dari
-                daftar karyawan aktif? Seluruh riwayat absensi, slip gaji, dan perhitungan gaji di
-                OMSET tetap tersimpan utuh dan karyawan dapat dipulihkan kapan saja.
-              </p>
-            </div>
-            <div className="flex items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3.5">
-              <button
-                type="button"
-                onClick={() => setArchiveTarget(null)}
-                className="h-9 rounded-xl bg-white px-4 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmArchive}
-                className="h-9 rounded-xl bg-[#ef4444] px-4 text-xs font-semibold text-white transition hover:bg-[#dc2626] cursor-pointer"
-              >
-                Ya, Arsipkan
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────── MODAL: FALLBACK SALIN TEKS WHATSAPP ─────────────────── */}
-      {waModal && (
-        <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setWaModal(null);
-          }}
-        >
-          <div className="w-full max-w-[520px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
-            <div className="flex items-center justify-between border-b border-[#edf2f0] px-5 py-4">
-              <div>
-                <h3 className="font-display text-base font-bold text-[#13222b]">
-                  Salin {waModal.title}
-                </h3>
-                <p className="text-xs text-[#64748b]">
-                  Salin teks di bawah ini lalu tempel (paste) ke WhatsApp
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                <p className="text-xs leading-relaxed text-[#475569]">
+                  Arsipkan <strong className="text-[#13222b]">{archiveTarget.nama}</strong> dari
+                  daftar karyawan aktif? Seluruh riwayat absensi, slip gaji, dan perhitungan gaji di
+                  OMSET tetap tersimpan utuh dan karyawan dapat dipulihkan kapan saja.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setWaModal(null)}
-                aria-label="Tutup"
-                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3.5">
+                <button
+                  type="button"
+                  onClick={() => setArchiveTarget(null)}
+                  className="h-9 rounded-xl bg-white px-4 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmArchive}
+                  className="h-9 rounded-xl bg-[#ef4444] px-4 text-xs font-semibold text-white transition hover:bg-[#dc2626] cursor-pointer"
+                >
+                  Ya, Arsipkan
+                </button>
+              </div>
             </div>
-            <div className="p-5">
-              <textarea
-                readOnly
-                value={waModal.text}
-                rows={13}
-                onFocus={(e) => e.currentTarget.select()}
-                className="font-mono-num w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] p-3 text-xs leading-relaxed text-[#13222b] focus:border-[#2eb86b] focus:outline-none"
-              />
+          </div>,
+          document.body
+        )}
+
+      {/* ─────────────────── MODAL: FALLBACK SALIN TEKS WHATSAPP ─────────────────── */}
+      {waModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setWaModal(null);
+            }}
+          >
+            <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+              <div className="flex shrink-0 items-center justify-between border-b border-[#edf2f0] px-5 py-4">
+                <div>
+                  <h3 className="font-display text-base font-bold text-[#13222b]">
+                    Salin {waModal.title}
+                  </h3>
+                  <p className="text-xs text-[#64748b]">
+                    Salin teks di bawah ini lalu tempel (paste) ke WhatsApp
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setWaModal(null)}
+                  aria-label="Tutup"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-5">
+                <textarea
+                  readOnly
+                  value={waModal.text}
+                  rows={13}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="font-mono-num w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] p-3 text-xs leading-relaxed text-[#13222b] focus:border-[#2eb86b] focus:outline-none"
+                />
+              </div>
+              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3.5">
+                <button
+                  type="button"
+                  onClick={() => setWaModal(null)}
+                  className="h-9 rounded-xl bg-white px-4 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(waModal.text);
+                      setWaModal(null);
+                      showToast(`${waModal.title} berhasil disalin.`);
+                    } catch {
+                      showToast('Gunakan Ctrl+C / Cmd+C pada kotak teks di atas.', 'err');
+                    }
+                  }}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>Salin teks</span>
+                </button>
+              </div>
             </div>
-            <div className="flex items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3.5">
-              <button
-                type="button"
-                onClick={() => setWaModal(null)}
-                className="h-9 rounded-xl bg-white px-4 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
-              >
-                Tutup
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(waModal.text);
-                    setWaModal(null);
-                    showToast(`${waModal.title} berhasil disalin.`);
-                  } catch {
-                    showToast('Gunakan Ctrl+C / Cmd+C pada kotak teks di atas.', 'err');
-                  }
-                }}
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                <span>Salin teks</span>
-              </button>
+          </div>,
+          document.body
+        )}
+
+      {/* MODAL PENGATURAN JAM KERJA (START – FINISH) */}
+      {shiftModalOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShiftModalOpen(false);
+            }}
+          >
+            <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+              <div className="flex shrink-0 items-start justify-between gap-2 border-b border-[#edf2f0] px-5 py-3.5">
+                <div>
+                  <h3 className="font-display text-base font-bold text-[#13222b]">
+                    Pengaturan Jam Kerja (Start–Finish)
+                  </h3>
+                  <p className="mt-0.5 text-xs text-[#64748b]">
+                    Atur jam masuk &amp; jam pulang setiap shift sebagai acuan keterlambatan dan isi otomatis
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShiftModalOpen(false)}
+                  aria-label="Tutup pengaturan jam kerja"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[#64748b] hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveShiftConfig} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-5 py-4">
+                  {(
+                    [
+                      {
+                        id: 'Full' as ScheduledShiftId,
+                        name: 'Full Day',
+                        desc: 'Shift operasional penuh harian',
+                      },
+                      {
+                        id: 'Pagi' as ScheduledShiftId,
+                        name: 'Shift Pagi',
+                        desc: 'Jadwal kerja sesi pagi',
+                      },
+                      {
+                        id: 'Siang' as ScheduledShiftId,
+                        name: 'Shift Siang',
+                        desc: 'Jadwal kerja sesi siang/sore',
+                      },
+                    ] as const
+                  ).map((item) => {
+                    const hours = shiftForm[item.id];
+                    const durMins = calcWorkDurationMinutes(hours.start, hours.end);
+                    return (
+                      <div
+                        key={item.id}
+                        className="rounded-xl border border-[#dce6e2] bg-[#f7faf9] p-3"
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <div>
+                            <div className="text-xs font-bold text-[#13222b]">{item.name}</div>
+                            <div className="text-[11px] text-[#64748b]">{item.desc}</div>
+                          </div>
+                          <span className="font-mono-num rounded-lg bg-[#e6f7ee] px-2.5 py-1 text-[11px] font-bold text-[#15803d]">
+                            Durasi {formatDurationLabel(durMins)}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1 block text-[11px] font-semibold text-[#475569]">
+                              Start (Jam Masuk)
+                            </label>
+                            <input
+                              type="time"
+                              required
+                              disabled={isViewer}
+                              value={hours.start}
+                              onChange={(e) =>
+                                setShiftForm((prev) => ({
+                                  ...prev,
+                                  [item.id]: { ...prev[item.id], start: e.target.value },
+                                }))
+                              }
+                              className="font-mono-num h-9 w-full rounded-xl border border-[#dce6e2] bg-white px-3 text-xs font-bold text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:ring-2 focus:ring-[#2eb86b]/20 disabled:opacity-60"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-[11px] font-semibold text-[#475569]">
+                              Finish (Jam Pulang)
+                            </label>
+                            <input
+                              type="time"
+                              required
+                              disabled={isViewer}
+                              value={hours.end}
+                              onChange={(e) =>
+                                setShiftForm((prev) => ({
+                                  ...prev,
+                                  [item.id]: { ...prev[item.id], end: e.target.value },
+                                }))
+                              }
+                              className="font-mono-num h-9 w-full rounded-xl border border-[#dce6e2] bg-white px-3 text-xs font-bold text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:ring-2 focus:ring-[#2eb86b]/20 disabled:opacity-60"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <p className="rounded-xl bg-[#f3f7f5] px-3.5 py-2 text-[11.5px] leading-relaxed text-[#475569]">
+                    Shift <strong className="text-[#13222b]">Fleksibel</strong> tidak memiliki jam
+                    baku sehingga tidak dikenakan hitungan keterlambatan.
+                  </p>
+                </div>
+
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3">
+                  {!isViewer ? (
+                    <button
+                      type="button"
+                      onClick={handleResetShiftDefaults}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white px-3.5 text-xs font-semibold text-[#475569] shadow-xs transition hover:bg-[#e1ebe7] hover:text-[#13222b] cursor-pointer"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      <span>Reset Default</span>
+                    </button>
+                  ) : (
+                    <span className="text-xs text-[#64748b]">Mode hanya-baca (Viewer)</span>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShiftModalOpen(false)}
+                      className="h-9 rounded-xl bg-white px-4 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    {!isViewer && (
+                      <button
+                        type="submit"
+                        className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
+                      >
+                        <Save className="h-3.5 w-3.5" />
+                        <span>Simpan Jam Kerja</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </form>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

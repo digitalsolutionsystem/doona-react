@@ -8,14 +8,24 @@ export type MenuId =
   | 'ms'
   | 'st'
   | 'lp'
-  | 'db';
+  | 'db'
+  | 'pg';
 
-export type InputHarianTab = 'closing' | 'datang' | 'pemakaian';
+export type InputHarianTab = 'closing' | 'datang' | 'pemakaian' | 'awal';
 export type OmsetSubTab = 'harian' | 'pengeluaran' | 'kalender' | 'grafik' | 'rekap';
 export type AbsensiSubTab = 'harian' | 'kalender' | 'karyawan' | 'rekap' | 'detail';
+export type PengaturanSubTab = 'uiux' | 'db';
 export type PayrollCycle = 'p1' | 'p2' | 'full';
 export type AttendanceStatus = 'Hadir' | 'Izin' | 'Sakit' | 'Alfa' | 'Libur';
 export type AttendanceShift = 'Pagi' | 'Siang' | 'Full' | 'Fleksibel';
+export type ScheduledShiftId = 'Full' | 'Pagi' | 'Siang';
+
+export interface ShiftHours {
+  start: string;
+  end: string;
+}
+
+export type ShiftScheduleConfig = Record<ScheduledShiftId, ShiftHours>;
 
 export interface MasterItem {
   id: string;
@@ -127,6 +137,7 @@ export interface AppData {
   karyawan: Employee[];
   karyawanArsip?: Employee[];
   absensi: Record<string, Record<number, Record<string, AttendanceRecord>>>;
+  shiftConfig?: Partial<ShiftScheduleConfig>;
   omset?: OmsetState;
 }
 
@@ -151,6 +162,7 @@ export interface NavigationOptions {
   omPeriod?: 0 | 1 | 2;
   abSub?: AbsensiSubTab;
   abCycle?: PayrollCycle;
+  pgSub?: PengaturanSubTab;
 }
 
 export type AttendanceDraftMap = Record<string, Record<string, AttendanceRecord>>;

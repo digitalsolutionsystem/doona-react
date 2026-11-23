@@ -58,10 +58,83 @@ export function getLastClosing(
   return undefined;
 }
 
+export interface StockCarryOverBase {
+  base: number | null;
+  from: string;
+  hasDirectPrevClosing: boolean;
+}
+
 /**
- * Rumus Stok Total Siap Jual (identik dengan tot(d, id) pada HTML lama):
- * - Tgl 1: (Stok Awal || 0) + (Datang tgl 1 || 0)
- * - Tgl > 1: jika Closing(d-1) kosong -> null, selain itu Closing(d-1) + (Datang(d) || 0)
+ * Menghitung basis stok bawaan sebelum Barang Datang pada tanggal `day`:
+ * - Tgl 1: Stok Awal (jika ada)
+ * - Tgl > 1: Closing(day - 1) jika ada; jika belum diisi, ambil Closing terakhir (< day)
+ *   atau Stok Awal ditambah akumulasi Barang Datang di antara tanggal tersebut hingga (day - 1).
+ */
+export function getStockCarryOverBase(
+  state: AppData,
+  ym: string,
+  day: number,
+  itemId: string
+): StockCarryOverBase {
+  const awal = getStockVal(state, ym, 'a', 0, itemId);
+
+  if (day <= 1) {
+    if (hasVal(awal)) {
+      return { base: Number(awal), from: 'Stok awal', hasDirectPrevClosing: true };
+    }
+    return { base: null, from: 'Stok awal', hasDirectPrevClosing: false };
+  }
+
+  const yesterdayClosing = getStockVal(state, ym, 'c', day - 1, itemId);
+  if (hasVal(yesterdayClosing)) {
+    return {
+      base: Number(yesterdayClosing),
+      from: `Closing tgl ${day - 1}`,
+      hasDirectPrevClosing: true,
+    };
+  }
+
+  let lastDay = 0;
+  for (let x = day - 2; x >= 1; x--) {
+    if (hasVal(getStockVal(state, ym, 'c', x, itemId))) {
+      lastDay = x;
+      break;
+    }
+  }
+
+  let midDatang = 0;
+  let hasMidDatang = false;
+  for (let x = lastDay + 1; x <= day - 1; x++) {
+    const dVal = getStockVal(state, ym, 'd', x, itemId);
+    if (hasVal(dVal)) {
+      midDatang += Number(dVal);
+      hasMidDatang = true;
+    }
+  }
+
+  if (lastDay > 0) {
+    const base = Number(getStockVal(state, ym, 'c', lastDay, itemId)) + midDatang;
+    return { base, from: `Closing tgl ${lastDay}`, hasDirectPrevClosing: false };
+  }
+
+  if (hasVal(awal)) {
+    return { base: Number(awal) + midDatang, from: 'Stok awal', hasDirectPrevClosing: false };
+  }
+
+  if (hasMidDatang) {
+    return { base: midDatang, from: 'Datang sebelumnya', hasDirectPrevClosing: false };
+  }
+
+  return { base: null, from: `Closing tgl ${day - 1}`, hasDirectPrevClosing: false };
+}
+
+/**
+ * Rumus Stok Total Siap Jual:
+ * - Tgl 1: (Stok Awal || 0) + (Datang tgl 1 || 0), jika salah satu (atau Closing tgl 1) terisi.
+ * - Tgl > 1:
+ *   - Jika Closing(d-1) terisi -> Closing(d-1) + (Datang(d) || 0)
+ *   - Jika Closing(d-1) belum terisi namun Datang(d) terisi -> (basis bawaan || 0) + Datang(d)
+ *   - Jika Closing(d-1) & Datang(d) kosong namun Closing(d) terisi dan ada basis bawaan -> basis bawaan
  */
 export function getStockTotal(
   state: AppData,
@@ -69,12 +142,32 @@ export function getStockTotal(
   day: number,
   itemId: string
 ): number | null {
+  const datang = getStockVal(state, ym, 'd', day, itemId);
+
   if (day === 1) {
-    return (getStockVal(state, ym, 'a', 0, itemId) || 0) + (getStockVal(state, ym, 'd', 1, itemId) || 0);
+    const awal = getStockVal(state, ym, 'a', 0, itemId);
+    const closingDay1 = getStockVal(state, ym, 'c', 1, itemId);
+    if (!hasVal(awal) && !hasVal(datang)) {
+      return hasVal(closingDay1) ? 0 : null;
+    }
+    return (Number(awal) || 0) + (Number(datang) || 0);
   }
-  const prevClosing = getStockVal(state, ym, 'c', day - 1, itemId);
-  if (prevClosing === undefined) return null;
-  return prevClosing + (getStockVal(state, ym, 'd', day, itemId) || 0);
+
+  const carry = getStockCarryOverBase(state, ym, day, itemId);
+  if (carry.hasDirectPrevClosing && carry.base !== null) {
+    return carry.base + (Number(datang) || 0);
+  }
+
+  if (hasVal(datang)) {
+    return (carry.base ?? 0) + Number(datang);
+  }
+
+  const closingToday = getStockVal(state, ym, 'c', day, itemId);
+  if (hasVal(closingToday) && carry.base !== null) {
+    return carry.base;
+  }
+
+  return null;
 }
 
 /**
@@ -101,12 +194,14 @@ export interface CurrentStockInfo {
   base: number | null;
   from: string;
   datang: number;
+  usage?: number | null;
   status: CurrentStockStatus;
 }
 
 /**
- * Rumus Stok Terkini (identik dengan stk(i) pada HTML lama):
- * Sisa closing kemarin (atau closing terakhir + datang antaranya / stok awal) + barang datang hari ini.
+ * Rumus Stok Terkini (Beranda):
+ * - Jika Closing hari ini sudah diisi -> langsung menampilkan sisa stok aktual (Closing hari ini) setelah dikurangi pemakaian.
+ * - Jika Closing hari ini belum diisi -> sisa closing kemarin (atau closing terakhir / stok awal + datang antaranya) + barang datang hari ini.
  */
 export function getCurrentStock(
   state: AppData,
@@ -114,43 +209,34 @@ export function getCurrentStock(
   today: number,
   item: MasterItem
 ): CurrentStockInfo {
-  const datang = Number(getStockVal(state, ym, 'd', today, item.id)) || 0;
-  const awal = getStockVal(state, ym, 'a', 0, item.id);
-  let base: number | null = null;
-  let from = '';
+  const todayClosing = getStockVal(state, ym, 'c', today, item.id);
+  if (hasVal(todayClosing)) {
+    const val = Number(todayClosing);
+    const usage = getDailyUsage(state, ym, today, item.id);
+    const status: CurrentStockStatus =
+      val <= 0 ? 'zero' : item.min > 0 && val < item.min ? 'low' : 'ok';
+    return {
+      item,
+      val,
+      base: val,
+      from: `Sisa closing tgl ${today}`,
+      datang: 0,
+      usage,
+      status,
+    };
+  }
 
-  if (today === 1) {
-    if (hasVal(awal) || datang) {
-      base = Number(awal) || 0;
-      from = 'Stok awal';
-    }
-  } else {
-    const yesterdayClosing = getStockVal(state, ym, 'c', today - 1, item.id);
-    if (hasVal(yesterdayClosing)) {
-      base = Number(yesterdayClosing);
-      from = 'Sisa kemarin';
-    } else {
-      let lastDay = 0;
-      for (let x = today - 2; x >= 1; x--) {
-        if (hasVal(getStockVal(state, ym, 'c', x, item.id))) {
-          lastDay = x;
-          break;
-        }
-      }
-      const from0 = lastDay
-        ? Number(getStockVal(state, ym, 'c', lastDay, item.id))
-        : hasVal(awal)
-          ? Number(awal)
-          : null;
-      if (from0 !== null) {
-        let mid = 0;
-        for (let x = lastDay + 1; x <= today - 1; x++) {
-          mid += Number(getStockVal(state, ym, 'd', x, item.id)) || 0;
-        }
-        base = from0 + mid;
-        from = lastDay ? `Closing tgl ${lastDay}` : 'Stok awal';
-      }
-    }
+  const datangRaw = getStockVal(state, ym, 'd', today, item.id);
+  const hasDatangToday = hasVal(datangRaw);
+  const datang = Number(datangRaw) || 0;
+  const carry = getStockCarryOverBase(state, ym, today, item.id);
+
+  let base: number | null = carry.base;
+  let from = carry.hasDirectPrevClosing && today > 1 ? 'Sisa kemarin' : carry.from;
+
+  if (base === null && hasDatangToday) {
+    base = 0;
+    from = 'Barang datang';
   }
 
   const val = base === null ? null : base + datang;
@@ -163,7 +249,7 @@ export function getCurrentStock(
           ? 'low'
           : 'ok';
 
-  return { item, val, base, from, datang, status };
+  return { item, val, base, from, datang, usage: null, status };
 }
 
 export interface NegativeUsageItem {
@@ -285,10 +371,11 @@ export function getStockDashboardSummary(
     .sort((a, b) => b.totalUsage - a.totalUsage)
     .slice(0, 5);
 
-  const isMonthEmpty =
-    !lastClosingDay &&
-    !filledAwalCount &&
-    !activeItems.some((i) => hasVal(getStockVal(state, ym, 'd', today, i.id)));
+  const hasAnyDatangInMonth = Array.from({ length: nd }, (_, idx) => idx + 1).some((d) =>
+    activeItems.some((i) => hasVal(getStockVal(state, ym, 'd', d, i.id)))
+  );
+
+  const isMonthEmpty = !lastClosingDay && !filledAwalCount && !hasAnyDatangInMonth;
 
   const isTodayClosingIncomplete =
     activeItems.length > 0 && filledClosingToday < activeItems.length;
@@ -367,6 +454,8 @@ export interface DayInputSummary {
   missingPrevClosing: boolean;
   missingAwalDay1: boolean;
   totalDatangDay: number;
+  totalSiapJualDay: number;
+  hasAnySiapJual: boolean;
   totalPemakaianDay: number;
   totalClosingDay: number;
   hasAnyPemakaian: boolean;
@@ -402,16 +491,16 @@ export function getDayInputSummary(
   let filledClosingCount = 0;
   let filledDatangCount = 0;
   let totalDatangDay = 0;
+  let totalSiapJualDay = 0;
+  let hasAnySiapJual = false;
   let totalPemakaianDay = 0;
   let totalClosingDay = 0;
   let hasAnyPemakaian = false;
 
   const rows: DayItemMovementRow[] = orderedItems.map((item) => {
-    const prevBase =
-      day === 1
-        ? getStockVal(state, ym, 'a', 0, item.id)
-        : getStockVal(state, ym, 'c', day - 1, item.id);
-    const prevLabel = day === 1 ? 'Stok awal' : `Closing tgl ${day - 1}`;
+    const carry = getStockCarryOverBase(state, ym, day, item.id);
+    const prevBase = carry.base !== null ? carry.base : undefined;
+    const prevLabel = carry.from;
     const datang = getStockVal(state, ym, 'd', day, item.id);
     const closing = getStockVal(state, ym, 'c', day, item.id);
     const totalSiapJual = getStockTotal(state, ym, day, item.id);
@@ -420,6 +509,10 @@ export function getDayInputSummary(
     if (hasVal(datang)) {
       filledDatangCount += 1;
       totalDatangDay += datang;
+    }
+    if (totalSiapJual !== null) {
+      hasAnySiapJual = true;
+      totalSiapJualDay += totalSiapJual;
     }
     if (hasVal(closing)) {
       filledClosingCount += 1;
@@ -461,6 +554,8 @@ export function getDayInputSummary(
     missingPrevClosing,
     missingAwalDay1,
     totalDatangDay,
+    totalSiapJualDay,
+    hasAnySiapJual,
     totalPemakaianDay,
     totalClosingDay,
     hasAnyPemakaian,
@@ -485,6 +580,8 @@ export interface MonthlyItemSummary {
   closingDaysCount: number;
   lastClosing: number | undefined;
   lastClosingDay: number | null;
+  lastStockTotal: number | undefined;
+  lastStockTotalDay: number | null;
 }
 
 export interface MonthlyDayMeta {
@@ -673,10 +770,13 @@ export function getMonthlyTableSummary(
     let closingDaysCount = 0;
     let lastClosing: number | undefined;
     let lastClosingDay: number | null = null;
+    let lastStockTotal: number | undefined;
+    let lastStockTotalDay: number | null = null;
 
     for (let d = 1; d <= nd; d++) {
       const datang = getStockVal(state, ym, 'd', d, item.id);
       const closing = getStockVal(state, ym, 'c', d, item.id);
+      const stockTotal = getStockTotal(state, ym, d, item.id);
       const usage = getDailyUsage(state, ym, d, item.id);
 
       if (hasVal(datang)) {
@@ -684,6 +784,10 @@ export function getMonthlyTableSummary(
         datangDaysCount += 1;
         totalDatangAll += datang;
         dayMeta[d].hasDatang = true;
+      }
+      if (stockTotal !== null) {
+        lastStockTotal = stockTotal;
+        lastStockTotalDay = d;
       }
       if (hasVal(closing)) {
         closingDaysCount += 1;
@@ -716,6 +820,8 @@ export function getMonthlyTableSummary(
       closingDaysCount,
       lastClosing,
       lastClosingDay,
+      lastStockTotal,
+      lastStockTotalDay,
     };
   });
 
