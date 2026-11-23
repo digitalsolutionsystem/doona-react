@@ -6,16 +6,22 @@ import {
   Calendar,
   CalendarDays,
   Check,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Copy,
   Edit3,
   ExternalLink,
+  LogIn,
+  LogOut,
+  MessageSquare,
   Minus,
   Plus,
   Printer,
   RotateCcw,
   Save,
+  Search,
   UserCheck,
   Users,
   Wallet,
@@ -26,10 +32,15 @@ import { DAY_NAMES, MONTH_NAMES } from '../constants/defaults';
 import { useApp } from '../context/AppContext';
 import {
   ATTENDANCE_STATUSES,
+  SHIFT_LIST,
+  SHIFT_PRESETS,
   buildRekapSlipWA,
   buildSingleEmpSlipWA,
   calcAttendanceRecordPay,
   calcEmployeePayroll,
+  calcLateMinutes,
+  calcWorkDurationMinutes,
+  formatDurationLabel,
   getActiveEmployees,
   getAllEmployeesWithArchive,
   getArchivedEmployees,
@@ -50,23 +61,31 @@ import {
   getTodayParts,
   getYear,
 } from '../domain/dateUtils';
-import type { AbsensiSubTab, AttendanceStatus, Employee, PayrollCycle } from '../types/app';
+import type {
+  AbsensiSubTab,
+  AttendanceShift,
+  AttendanceStatus,
+  Employee,
+  PayrollCycle,
+} from '../types/app';
 
 const STATUS_BUTTON_ACTIVE: Record<AttendanceStatus, string> = {
-  Hadir: 'border-[#14533c] bg-[#14533c] text-white',
-  Izin: 'border-[#b45309] bg-[#b45309] text-white',
-  Sakit: 'border-[#2c5282] bg-[#2c5282] text-white',
-  Alfa: 'border-[#b91c1c] bg-[#b91c1c] text-white',
-  Libur: 'border-[#3f4642] bg-[#3f4642] text-white',
+  Hadir: 'bg-[#2eb86b] text-white shadow-xs',
+  Izin: 'bg-[#f59e0b] text-white shadow-xs',
+  Sakit: 'bg-[#0ea5e9] text-white shadow-xs',
+  Alfa: 'bg-[#ef4444] text-white shadow-xs',
+  Libur: 'bg-[#0d2530] text-white shadow-xs',
 };
 
 const STATUS_TEXT_COLOR: Record<AttendanceStatus, string> = {
-  Hadir: 'text-[#14533c]',
+  Hadir: 'text-[#15803d]',
   Izin: 'text-[#b45309]',
-  Sakit: 'text-[#2c5282]',
-  Alfa: 'text-[#b91c1c]',
-  Libur: 'text-[#565e59]',
+  Sakit: 'text-[#0284c7]',
+  Alfa: 'text-[#dc2626]',
+  Libur: 'text-[#475569]',
 };
+
+type DailyFilterMode = 'all' | 'unrecorded' | 'hadir' | 'late' | 'absent' | 'overtime';
 
 const PAYROLL_CYCLES: Array<{ id: PayrollCycle; label: string }> = [
   { id: 'p1', label: 'Tahap 1 · 1–15' },
@@ -95,9 +114,14 @@ export const AbsensiGajiPage: React.FC = () => {
     goToday,
     navigateTo,
     setAttendanceDraftStatus,
+    updateAttendanceDraft,
+    clockInEmployee,
+    clockOutEmployee,
+    resetAttendanceDraftDay,
     setAttendanceDraftLembur,
     adjustAttendanceDraftLembur,
     setAllAttendanceHadir,
+    saveSingleAttendanceRow,
     saveAttendanceDay,
     saveEmployee,
     toggleEmployeeActive,
@@ -111,12 +135,26 @@ export const AbsensiGajiPage: React.FC = () => {
   const [detailShowAll, setDetailShowAll] = useState<boolean>(false);
   const [showArchiveList, setShowArchiveList] = useState<boolean>(false);
 
+  // HRIS Daily Workspace filters & inline note drawers
+  const [dailySearch, setDailySearch] = useState<string>('');
+  const [dailyFilter, setDailyFilter] = useState<DailyFilterMode>('all');
+  const [openNoteIds, setOpenNoteIds] = useState<Record<string, boolean>>({});
+  const [nowClock, setNowClock] = useState<string>(() =>
+    new Date().toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  );
+
   const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
 
   const [empModalOpen, setEmpModalOpen] = useState<boolean>(false);
   const [editEmp, setEditEmp] = useState<Employee | null>(null);
   const [formNama, setFormNama] = useState<string>('');
   const [formFoto, setFormFoto] = useState<string>('');
+  const [formJabatan, setFormJabatan] = useState<string>('');
+  const [formShiftDefault, setFormShiftDefault] = useState<AttendanceShift>('Full');
   const [formGaji, setFormGaji] = useState<string>('75000');
   const [formLembur, setFormLembur] = useState<string>('25000');
   const [formSiklus, setFormSiklus] = useState<'14hari' | 'bulanan'>('14hari');
@@ -131,12 +169,28 @@ export const AbsensiGajiPage: React.FC = () => {
   const monthNum = getMonth(ym);
   const monthLabel = `${MONTH_NAMES[monthNum - 1]} ${yearNum}`;
   const todayParts = useMemo(() => getTodayParts(), []);
+  const isViewingToday = ym === todayParts.ym && day === todayParts.day;
   const dateIso = formatDateKey(ym, day);
   const activeTabKey: AbsensiSubTab = abSub === 'detail' ? prevSub : abSub;
 
   useEffect(() => {
     setCalSelDay((prev) => Math.min(Math.max(1, prev || day), nd));
   }, [ym, nd, day]);
+
+  useEffect(() => {
+    if (abSub !== 'harian') return;
+    const tick = () =>
+      setNowClock(
+        new Date().toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        })
+      );
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [abSub]);
 
   useEffect(() => {
     if (!toast) return;
@@ -159,6 +213,28 @@ export const AbsensiGajiPage: React.FC = () => {
     () => getDailyAttendanceViewModel(state, ym, day, absDraft),
     [state, ym, day, absDraft]
   );
+
+  const filteredDailyRows = useMemo(() => {
+    const q = dailySearch.trim().toLowerCase();
+    return dailyModel.rows.filter((row) => {
+      if (q) {
+        const hay = `${row.emp.nama} ${row.emp.jabatan || ''} ${row.shift}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (dailyFilter === 'unrecorded') return !row.isRecorded;
+      if (dailyFilter === 'hadir') return row.effective?.status === 'Hadir';
+      if (dailyFilter === 'late') return row.effective?.status === 'Hadir' && row.lateMinutes > 0;
+      if (dailyFilter === 'absent')
+        return Boolean(row.effective && row.effective.status !== 'Hadir');
+      if (dailyFilter === 'overtime') return Boolean(row.effective && row.effective.lembur > 0);
+      return true;
+    });
+  }, [dailyModel.rows, dailySearch, dailyFilter]);
+
+  const attendancePct =
+    activeEmployees.length > 0
+      ? Math.round((dailyModel.hadir / activeEmployees.length) * 100)
+      : 0;
 
   const calendarData = useMemo(() => getAttendanceCalendarMonth(state, ym), [state, ym]);
 
@@ -211,7 +287,16 @@ export const AbsensiGajiPage: React.FC = () => {
   const handleSaveToday = async () => {
     const res = await saveAttendanceDay(ym, day);
     if (res.ok) {
-      showToast(`Absensi tgl ${day} ${MONTH_NAMES[monthNum - 1]} berhasil disimpan.`);
+      showToast(`Absensi tgl ${day} ${MONTH_NAMES[monthNum - 1]} berhasil disimpan & diverifikasi.`);
+    } else if (res.error) {
+      showToast(res.error, 'err');
+    }
+  };
+
+  const handleSaveRow = async (emp: Employee) => {
+    const res = await saveSingleAttendanceRow(ym, day, emp.id);
+    if (res.ok) {
+      showToast(`Absensi ${emp.nama} berhasil diverifikasi.`);
     } else if (res.error) {
       showToast(res.error, 'err');
     }
@@ -221,6 +306,8 @@ export const AbsensiGajiPage: React.FC = () => {
     setEditEmp(null);
     setFormNama('');
     setFormFoto('');
+    setFormJabatan('');
+    setFormShiftDefault('Full');
     setFormGaji('75000');
     setFormLembur('25000');
     setFormSiklus('14hari');
@@ -233,6 +320,8 @@ export const AbsensiGajiPage: React.FC = () => {
     setEditEmp(emp);
     setFormNama(emp.nama || '');
     setFormFoto(emp.foto || '');
+    setFormJabatan(emp.jabatan || '');
+    setFormShiftDefault(emp.shiftDefault || 'Full');
     setFormGaji(String(Number(emp.gajiHarian) || 0));
     setFormLembur(String(Number(emp.lemburPerPaket) || 0));
     setFormSiklus(emp.siklusGaji === 'bulanan' ? 'bulanan' : '14hari');
@@ -257,6 +346,8 @@ export const AbsensiGajiPage: React.FC = () => {
       id: editEmp?.id,
       nama: formNama,
       foto: formFoto,
+      jabatan: formJabatan,
+      shiftDefault: formShiftDefault,
       gajiHarian: Number(formGaji) || 0,
       lemburPerPaket: Number(formLembur) || 0,
       siklusGaji: formSiklus,
@@ -304,7 +395,7 @@ export const AbsensiGajiPage: React.FC = () => {
 
   const renderCycleSwitcher = () => (
     <div
-      className="inline-flex items-center gap-0.5 rounded-lg border border-[#e5e5df] bg-[#f1f1ec] p-0.5"
+      className="inline-flex items-center gap-1 rounded-xl bg-white p-1 shadow-[0_6px_22px_rgba(13,37,48,0.045)]"
       role="tablist"
       aria-label="Siklus gaji"
     >
@@ -317,10 +408,10 @@ export const AbsensiGajiPage: React.FC = () => {
             role="tab"
             aria-selected={active}
             onClick={() => setAbCycle(c.id)}
-            className={`h-7 shrink-0 rounded-md px-3 text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+            className={`h-7 shrink-0 rounded-lg px-3 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
               active
-                ? 'bg-[#14533c] text-white'
-                : 'text-[#565e59] hover:bg-white hover:text-[#141816]'
+                ? 'bg-[#2eb86b] text-white shadow-xs'
+                : 'text-[#64748b] hover:bg-[#f3f7f5] hover:text-[#13222b]'
             }`}
           >
             {c.label}
@@ -378,60 +469,63 @@ export const AbsensiGajiPage: React.FC = () => {
   const calendarLeadingBlanks = getDayOfWeek(ym, 1);
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#f7f7f4]">
-      {/* TOP TOOLBAR */}
-      <div className="no-print flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#e5e5df] bg-white px-4 py-3 sm:px-6">
+    <div className="dg-page">
+      {/* STICKY FLOATING TOP TOOLBAR */}
+      <div className="dg-sticky-header no-print px-4 pt-3 pb-1 md:px-6">
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] md:px-5">
         {abSub === 'harian' ? (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => moveDay(-1)}
-              aria-label="Hari sebelumnya"
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e5e5df] bg-white text-[#565e59] hover:bg-[#f4f4ef] hover:text-[#141816] cursor-pointer"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <input
-              type="date"
-              value={dateIso}
-              onChange={(e) => selectDateStr(e.target.value)}
-              aria-label="Pilih tanggal absensi"
-              className="font-mono-num h-8 rounded-lg border border-[#e5e5df] bg-white px-2.5 text-xs font-medium text-[#141816] focus:border-[#14533c] focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => moveDay(1)}
-              aria-label="Hari berikutnya"
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e5e5df] bg-white text-[#565e59] hover:bg-[#f4f4ef] hover:text-[#141816] cursor-pointer"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center rounded-xl bg-[#f3f7f5] p-0.5">
+              <button
+                type="button"
+                onClick={() => moveDay(-1)}
+                aria-label="Hari sebelumnya"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] transition hover:bg-white hover:text-[#13222b] cursor-pointer"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <input
+                type="date"
+                value={dateIso}
+                onChange={(e) => selectDateStr(e.target.value)}
+                aria-label="Pilih tanggal absensi"
+                className="font-mono-num h-7 bg-transparent px-2 text-xs font-semibold text-[#13222b] focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => moveDay(1)}
+                aria-label="Hari berikutnya"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] transition hover:bg-white hover:text-[#13222b] cursor-pointer"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
             <button
               type="button"
               onClick={goToday}
-              className="h-8 shrink-0 rounded-lg border border-[#e5e5df] bg-white px-2.5 text-xs font-medium text-[#141816] hover:bg-[#f4f4ef] whitespace-nowrap cursor-pointer"
+              className="h-8 shrink-0 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] whitespace-nowrap cursor-pointer"
             >
               Hari ini
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5">
+          <div className="inline-flex items-center rounded-xl bg-[#f3f7f5] p-0.5">
             <button
               type="button"
               onClick={() => moveMonth(-1)}
               aria-label="Bulan sebelumnya"
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e5e5df] bg-white text-[#565e59] hover:bg-[#f4f4ef] hover:text-[#141816] cursor-pointer"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] transition hover:bg-white hover:text-[#13222b] cursor-pointer"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="font-display min-w-[140px] text-center text-[14px] font-semibold text-[#141816]">
+            <span className="font-display min-w-[136px] text-center text-[13.5px] font-bold text-[#13222b]">
               {monthLabel}
             </span>
             <button
               type="button"
               onClick={() => moveMonth(1)}
               aria-label="Bulan berikutnya"
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e5e5df] bg-white text-[#565e59] hover:bg-[#f4f4ef] hover:text-[#141816] cursor-pointer"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] transition hover:bg-white hover:text-[#13222b] cursor-pointer"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -440,7 +534,7 @@ export const AbsensiGajiPage: React.FC = () => {
 
         {/* SUB-TAB SWITCHER */}
         <div
-          className="flex items-center gap-0.5 overflow-x-auto rounded-lg border border-[#e5e5df] bg-[#f1f1ec] p-0.5"
+          className="flex items-center gap-1 overflow-x-auto rounded-xl bg-[#f3f7f5] p-1"
           role="tablist"
           aria-label="Submenu Absensi & Gaji"
         >
@@ -468,10 +562,10 @@ export const AbsensiGajiPage: React.FC = () => {
                   if (tab.id === 'kalender') setCalSelDay(Math.min(day, nd));
                   setAbSub(tab.id);
                 }}
-                className={`flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                className={`flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                   isOn
-                    ? 'bg-[#14533c] text-white'
-                    : 'text-[#565e59] hover:bg-white hover:text-[#141816]'
+                    ? 'bg-[#2eb86b] text-white shadow-xs'
+                    : 'text-[#64748b] hover:text-[#13222b]'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -480,15 +574,16 @@ export const AbsensiGajiPage: React.FC = () => {
             );
           })}
         </div>
+        </header>
       </div>
 
-      {/* INLINE TOAST / DB ERROR BANNER */}
+      {/* FLOATING TOAST / DB ERROR BANNER */}
       {(toast || absSaveError) && (
-        <div className="no-print shrink-0 border-b border-[#e5e5df] bg-white px-4 py-2 sm:px-6">
+        <div className="no-print mx-4 mt-3 shrink-0 md:mx-6">
           {absSaveError && (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#f5c2c2] bg-[#fef2f2] px-3.5 py-2 text-xs text-[#991b1b]">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#ef4444] px-4 py-2.5 text-xs font-semibold text-white shadow-sm">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-[#b91c1c]" />
+                <AlertTriangle className="h-4 w-4 shrink-0" />
                 <span>{absSaveError}</span>
               </div>
               {!isViewer && abSub === 'harian' && (
@@ -496,7 +591,7 @@ export const AbsensiGajiPage: React.FC = () => {
                   type="button"
                   disabled={absSaving}
                   onClick={handleSaveToday}
-                  className="shrink-0 rounded-md bg-[#b91c1c] px-2.5 py-1 text-xs font-medium text-white hover:bg-[#991b1b] whitespace-nowrap cursor-pointer disabled:opacity-50"
+                  className="shrink-0 rounded-lg bg-white/20 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-white/30 whitespace-nowrap cursor-pointer disabled:opacity-50"
                 >
                   Kirim ulang
                 </button>
@@ -505,10 +600,8 @@ export const AbsensiGajiPage: React.FC = () => {
           )}
           {toast && !absSaveError && (
             <div
-              className={`flex items-center justify-between gap-2 rounded-lg border px-3.5 py-2 text-xs font-medium ${
-                toast.tone === 'err'
-                  ? 'border-[#f5c2c2] bg-[#fef2f2] text-[#991b1b]'
-                  : 'border-[#d6e4dd] bg-[#f4faf7] text-[#14533c]'
+              className={`flex items-center justify-between gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold text-white shadow-sm ${
+                toast.tone === 'err' ? 'bg-[#ef4444]' : 'bg-[#2eb86b]'
               }`}
             >
               <span>{toast.text}</span>
@@ -516,7 +609,7 @@ export const AbsensiGajiPage: React.FC = () => {
                 type="button"
                 onClick={() => setToast(null)}
                 aria-label="Tutup notifikasi"
-                className="text-current opacity-70 hover:opacity-100 cursor-pointer"
+                className="text-current opacity-80 hover:opacity-100 cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -526,40 +619,53 @@ export const AbsensiGajiPage: React.FC = () => {
       )}
 
       {/* MAIN SCROLLABLE CONTENT */}
-      <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-        <div className="mx-auto max-w-[1160px]">
-          {/* ─────────────────── TAB 1: ABSENSI HARIAN ─────────────────── */}
+      <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
+        <div className="mx-auto max-w-[1380px]">
+          {/* ─────────────────── TAB 1: ABSENSI HARIAN (HRIS WORKSPACE) ─────────────────── */}
           {abSub === 'harian' && (
-            <div className="space-y-5">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div className="space-y-4">
+              {/* OPERATIONAL HEADER & LIVE CLOCK */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-display text-base font-semibold text-[#141816]">
+                  <h2 className="font-display text-lg font-bold tracking-[-0.015em] text-[#13222b]">
                     Absensi {DAY_NAMES[getDayOfWeek(ym, day)]}, {day} {monthLabel}
                   </h2>
-                  <p className="mt-0.5 text-xs text-[#7c8580]">
-                    Gaji pokok hanya dihitung pada status Hadir · Libur, Izin, Sakit, dan Alfa tidak
-                    menambah gaji pokok
+                  <p className="mt-0.5 text-xs text-[#64748b]">
+                    Log check-in/out shift, kalkulasi keterlambatan &amp; durasi kerja otomatis ·
+                    Gaji pokok dihitung pada status Hadir
                   </p>
                 </div>
-                {dailyModel.draftDayCount > 0 && (
-                  <span className="text-xs font-medium text-[#b45309]">
-                    Ada draf belum disimpan ({dailyModel.draftDayCount} tanggal)
-                  </span>
-                )}
+
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  {dailyModel.draftDayCount > 0 && (
+                    <span className="font-semibold text-[#b45309]">
+                      Draf belum diverifikasi ({dailyModel.draftDayCount} tanggal)
+                    </span>
+                  )}
+                  <div className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 shadow-[0_6px_22px_rgba(13,37,48,0.045)]">
+                    <Clock className="h-3.5 w-3.5 text-[#2eb86b]" />
+                    <span className="font-mono-num text-xs font-bold text-[#13222b]">
+                      {nowClock}
+                    </span>
+                    <span className="text-[11px] text-[#64748b]">
+                      · {isViewingToday ? 'Hari ini' : 'Tanggal lain'}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {activeEmployees.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#dcdcd4] bg-white py-14 text-center">
-                  <Users className="mb-3 h-8 w-8 text-[#9aa39d]" />
-                  <p className="text-sm font-medium text-[#141816]">Belum ada karyawan aktif.</p>
-                  <p className="mt-1 text-xs text-[#7c8580]">
+                <div className="flex flex-col items-center justify-center rounded-2xl bg-white py-14 text-center shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
+                  <Users className="mb-3 h-8 w-8 text-[#94a3b8]" />
+                  <p className="text-sm font-semibold text-[#13222b]">Belum ada karyawan aktif.</p>
+                  <p className="mt-1 text-xs text-[#64748b]">
                     Tambahkan atau aktifkan karyawan terlebih dahulu untuk mulai mencatat absensi.
                   </p>
                   {!isViewer && (
                     <button
                       type="button"
                       onClick={() => setAbSub('karyawan')}
-                      className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                      className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
                     >
                       <Plus className="h-4 w-4" />
                       <span>Kelola Karyawan</span>
@@ -568,153 +674,639 @@ export const AbsensiGajiPage: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  {/* 3-COLUMN SUMMARY LEDGER STRIP */}
-                  <div className="grid grid-cols-1 divide-y divide-[#efefea] overflow-hidden rounded-xl border border-[#e5e5df] bg-white sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-                    <div className="px-5 py-3.5">
-                      <div className="text-xs font-medium text-[#7c8580]">Hadir</div>
-                      <div className="font-mono-num mt-1 text-xl font-semibold text-[#141816]">
+                  {/* 4 FLOATING HRIS KPI CARDS */}
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {/* KPI 1: Kehadiran */}
+                    <div className="rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] sm:p-5">
+                      <div className="flex items-center justify-between text-xs font-semibold text-[#64748b]">
+                        <span>Tingkat Kehadiran</span>
+                        <span className="font-mono-num font-bold text-[#15803d]">
+                          {attendancePct}%
+                        </span>
+                      </div>
+                      <div className="font-mono-num mt-1.5 text-2xl font-bold text-[#13222b]">
                         {dailyModel.hadir}
-                        <span className="text-sm font-normal text-[#7c8580]">
-                          /{activeEmployees.length}
+                        <span className="text-sm font-medium text-[#64748b]">
+                          /{activeEmployees.length} hadir
+                        </span>
+                      </div>
+                      <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-[#edf2f0]">
+                        <div
+                          className="h-full rounded-full bg-[#2eb86b] transition-all duration-200"
+                          style={{ width: `${attendancePct}%` }}
+                        />
+                      </div>
+                      <div className="mt-2 flex items-center gap-1.5 text-[11.5px] text-[#64748b]">
+                        <span>Tercatat {dailyModel.recordedCount}</span>
+                        <span aria-hidden="true">·</span>
+                        <span
+                          className={
+                            dailyModel.unrecordedCount > 0 ? 'font-semibold text-[#b45309]' : ''
+                          }
+                        >
+                          Belum absen {dailyModel.unrecordedCount}
                         </span>
                       </div>
                     </div>
-                    <div className="px-5 py-3.5">
-                      <div className="text-xs font-medium text-[#7c8580]">Lembur</div>
-                      <div className="font-mono-num mt-1 text-xl font-semibold text-[#141816]">
-                        {dailyModel.lembur}
-                        <span className="ml-1 text-sm font-normal text-[#7c8580]">paket</span>
+
+                    {/* KPI 2: Ketepatan & Jam Kerja */}
+                    <div className="rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] sm:p-5">
+                      <div className="text-xs font-semibold text-[#64748b]">
+                        Ketepatan &amp; Jam Kerja
+                      </div>
+                      <div className="font-mono-num mt-1.5 text-2xl font-bold text-[#13222b]">
+                        {dailyModel.avgWorkMinutes !== null
+                          ? formatDurationLabel(dailyModel.avgWorkMinutes)
+                          : dailyModel.hadir > 0
+                            ? 'Aktif'
+                            : '–'}
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-[#64748b]">
+                        <span className="font-semibold text-[#15803d]">
+                          Tepat waktu {dailyModel.onTimeCount}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span
+                          className={
+                            dailyModel.lateCount > 0
+                              ? 'font-semibold text-[#dc2626]'
+                              : 'text-[#64748b]'
+                          }
+                        >
+                          Terlambat {dailyModel.lateCount}
+                        </span>
                       </div>
                     </div>
-                    <div className="bg-[#f4faf7] px-5 py-3.5">
-                      <div className="text-xs font-medium text-[#14533c]">Total gaji hari ini</div>
-                      <div className="font-mono-num mt-1 text-xl font-semibold text-[#14533c]">
+
+                    {/* KPI 3: Ketidakhadiran & Lembur */}
+                    <div className="rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] sm:p-5">
+                      <div className="flex items-center justify-between text-xs font-semibold text-[#64748b]">
+                        <span>Tidak Hadir &amp; Lembur</span>
+                        <span className="font-mono-num font-bold text-[#13222b]">
+                          {dailyModel.lembur} pkt lembur
+                        </span>
+                      </div>
+                      <div className="font-mono-num mt-1.5 text-2xl font-bold text-[#13222b]">
+                        {dailyModel.absent}
+                        <span className="ml-1.5 text-sm font-medium text-[#64748b]">
+                          orang off
+                        </span>
+                      </div>
+                      <div className="font-mono-num mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-[#64748b]">
+                        <span>Izin {dailyModel.izin}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>Sakit {dailyModel.sakit}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>Alfa {dailyModel.alfa}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>Libur {dailyModel.libur}</span>
+                      </div>
+                    </div>
+
+                    {/* KPI 4: Estimasi Gaji Hari Ini */}
+                    <div className="rounded-2xl bg-[#f2fbf6] p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] sm:p-5">
+                      <div className="flex items-center justify-between text-xs font-semibold text-[#15803d]">
+                        <span>Estimasi Payroll Hari Ini</span>
+                        <span className="font-mono-num">
+                          {dailyModel.saved}/{activeEmployees.length} sah
+                        </span>
+                      </div>
+                      <div className="font-mono-num mt-1.5 text-2xl font-bold text-[#15803d]">
                         {formatRp(dailyModel.gaji)}
+                      </div>
+                      <div className="font-mono-num mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-[#15803d]/85">
+                        <span>Pokok {formatNum(dailyModel.gajiPokok)}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>Lembur {formatNum(dailyModel.uangLembur)}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* ATTENDANCE LIST */}
-                  <div className="divide-y divide-[#efefea] overflow-hidden rounded-xl border border-[#e5e5df] bg-white">
-                    {dailyModel.rows.map((row) => {
-                      const { emp, effective, isSaved, gp, ul, tot } = row;
-                      return (
-                        <div
-                          key={emp.id}
-                          className={`grid grid-cols-1 items-center gap-3 px-4 py-3.5 transition-colors lg:grid-cols-[minmax(190px,1.2fr)_auto_auto_minmax(150px,0.8fr)] ${
-                            isSaved ? 'bg-white' : 'bg-[#fdf9ee]/70'
-                          }`}
-                        >
-                          {/* WHO */}
-                          <div className="flex items-center gap-3">
-                            <EmployeeAvatar nama={emp.nama} foto={emp.foto} size="md" />
-                            <div className="min-w-0">
-                              <button
-                                type="button"
-                                onClick={() => openEmpDetail(emp.id)}
-                                className="block truncate text-left text-[13.5px] font-semibold text-[#141816] hover:text-[#14533c] hover:underline cursor-pointer"
-                                title="Klik untuk lihat rincian & slip gaji"
-                              >
-                                {emp.nama}
-                              </button>
-                              <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px]">
-                                <span
-                                  className={
-                                    isSaved
-                                      ? 'font-medium text-[#15803d]'
-                                      : 'font-medium text-[#b45309]'
-                                  }
-                                >
-                                  {isSaved ? 'Tersimpan' : 'Belum disimpan'}
-                                </span>
-                                <span aria-hidden="true" className="text-[#c5c5bc]">
-                                  ·
-                                </span>
-                                <span className="font-mono-num text-[#7c8580]">
-                                  {formatRp(emp.gajiHarian)}/hr
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* STATUS BUTTONS */}
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {ATTENDANCE_STATUSES.map((st) => {
-                              const isSelected = effective.status === st;
-                              return (
-                                <button
-                                  key={st}
-                                  type="button"
-                                  disabled={isViewer}
-                                  onClick={() => setAttendanceDraftStatus(ym, day, emp.id, st)}
-                                  className={`h-8 shrink-0 rounded-lg border px-2.5 text-xs font-medium whitespace-nowrap transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${
-                                    isSelected
-                                      ? STATUS_BUTTON_ACTIVE[st]
-                                      : 'border-[#e5e5df] bg-white text-[#565e59] hover:border-[#b5b5ac] hover:text-[#141816]'
-                                  }`}
-                                >
-                                  {st}
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          {/* LEMBUR STEPPER */}
-                          <div className="flex items-center gap-2">
-                            <div className="inline-flex items-center overflow-hidden rounded-lg border border-[#e5e5df] bg-white">
-                              <button
-                                type="button"
-                                disabled={isViewer || effective.lembur <= 0}
-                                onClick={() => adjustAttendanceDraftLembur(ym, day, emp.id, -1)}
-                                aria-label={`Kurangi lembur ${emp.nama}`}
-                                className="flex h-8 w-8 items-center justify-center text-[#565e59] hover:bg-[#f4f4ef] disabled:opacity-40 cursor-pointer"
-                              >
-                                <Minus className="h-3.5 w-3.5" />
-                              </button>
-                              <input
-                                type="number"
-                                min={0}
-                                step={1}
-                                disabled={isViewer}
-                                value={effective.lembur}
-                                onChange={(e) =>
-                                  setAttendanceDraftLembur(
-                                    ym,
-                                    day,
-                                    emp.id,
-                                    parseInt(e.target.value, 10) || 0
-                                  )
-                                }
-                                aria-label={`Paket lembur ${emp.nama}`}
-                                className="font-mono-num h-8 w-12 border-x border-[#efefea] text-center text-xs font-semibold text-[#141816] focus:outline-none disabled:bg-[#f4f4ef]"
-                              />
-                              <button
-                                type="button"
-                                disabled={isViewer}
-                                onClick={() => adjustAttendanceDraftLembur(ym, day, emp.id, 1)}
-                                aria-label={`Tambah lembur ${emp.nama}`}
-                                className="flex h-8 w-8 items-center justify-center text-[#565e59] hover:bg-[#f4f4ef] disabled:opacity-40 cursor-pointer"
-                              >
-                                <Plus className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                            <span className="font-mono-num text-[11.5px] text-[#7c8580] whitespace-nowrap">
-                              paket × {formatNum(emp.lemburPerPaket)}
-                            </span>
-                          </div>
-
-                          {/* DAILY PAY PREVIEW */}
-                          <div className="text-left lg:text-right">
-                            <div className="font-mono-num text-sm font-semibold text-[#141816]">
-                              {formatRp(tot)}
-                            </div>
-                            <div className="font-mono-num text-[11px] text-[#7c8580]">
-                              Pokok {formatNum(gp)} · Lembur {formatNum(ul)}
-                            </div>
-                          </div>
+                  {/* UNIFIED HRIS ATTENDANCE SHEET */}
+                  <div className="overflow-hidden rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
+                    {/* FILTER, SEARCH & BULK ACTIONS BAR */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f0] px-4 py-3 sm:px-5">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-[#64748b]" />
+                          <input
+                            type="text"
+                            value={dailySearch}
+                            onChange={(e) => setDailySearch(e.target.value)}
+                            placeholder="Cari nama atau jabatan…"
+                            aria-label="Cari karyawan"
+                            className="h-8.5 w-48 rounded-xl border border-[#dce6e2] bg-[#f7faf9] pr-3 pl-8.5 text-xs text-[#13222b] transition focus:border-[#2eb86b] focus:bg-white focus:outline-none sm:w-56"
+                          />
                         </div>
-                      );
-                    })}
+
+                        <div
+                          className="flex items-center gap-1 overflow-x-auto rounded-xl bg-[#f3f7f5] p-1"
+                          role="tablist"
+                          aria-label="Filter status absensi harian"
+                        >
+                          {(
+                            [
+                              { id: 'all', label: 'Semua', count: activeEmployees.length },
+                              {
+                                id: 'unrecorded',
+                                label: 'Belum Absen',
+                                count: dailyModel.unrecordedCount,
+                              },
+                              { id: 'hadir', label: 'Hadir', count: dailyModel.hadir },
+                              { id: 'late', label: 'Telat', count: dailyModel.lateCount },
+                              { id: 'absent', label: 'Tidak Hadir', count: dailyModel.absent },
+                              {
+                                id: 'overtime',
+                                label: 'Lembur',
+                                count: dailyModel.rows.filter(
+                                  (r) => (r.effective?.lembur || 0) > 0
+                                ).length,
+                              },
+                            ] as Array<{ id: DailyFilterMode; label: string; count: number }>
+                          ).map((f) => {
+                            const active = dailyFilter === f.id;
+                            return (
+                              <button
+                                key={f.id}
+                                type="button"
+                                role="tab"
+                                aria-selected={active}
+                                onClick={() => setDailyFilter(f.id)}
+                                className={`h-7 shrink-0 rounded-lg px-2.5 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                                  active
+                                    ? 'bg-white text-[#13222b] shadow-xs'
+                                    : 'text-[#64748b] hover:text-[#13222b]'
+                                }`}
+                              >
+                                {f.label}{' '}
+                                <span className="font-mono-num opacity-75">({f.count})</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {!isViewer && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {dailyModel.draftRowCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                resetAttendanceDraftDay(ym, day);
+                                showToast('Draf perubahan hari ini dibatalkan.');
+                              }}
+                              className="inline-flex h-8.5 shrink-0 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#475569] transition hover:bg-[#fee2e2] hover:text-[#b91c1c] whitespace-nowrap cursor-pointer"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              <span>Reset Draf</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAllAttendanceHadir(ym, day, {
+                                onlyUnrecorded: dailyModel.recordedCount > 0 && dailyModel.unrecordedCount > 0,
+                                withScheduledTimes: true,
+                              })
+                            }
+                            className="inline-flex h-8.5 shrink-0 items-center gap-1.5 rounded-xl bg-[#e6f7ee] px-3.5 text-xs font-semibold text-[#15803d] transition hover:bg-[#d1f0e0] whitespace-nowrap cursor-pointer"
+                          >
+                            <UserCheck className="h-3.5 w-3.5" />
+                            <span>
+                              {dailyModel.recordedCount > 0 && dailyModel.unrecordedCount > 0
+                                ? `Hadirkan ${dailyModel.unrecordedCount} Belum Absen`
+                                : 'Semua Hadir (Sesuai Shift)'}
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* DESKTOP COLUMN HEADERS */}
+                    <div className="hidden border-b border-[#edf2f0] bg-[#f7faf9] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.04em] text-[#64748b] xl:grid xl:grid-cols-[minmax(215px,1.25fr)_252px_minmax(220px,1.15fr)_116px_138px_132px_74px] xl:items-center xl:gap-3">
+                      <div>Karyawan &amp; Shift</div>
+                      <div>Status Kehadiran</div>
+                      <div>Log Waktu / Keterangan</div>
+                      <div>Durasi</div>
+                      <div>Lembur</div>
+                      <div className="text-right">Estimasi Gaji</div>
+                      <div className="text-right">Aksi</div>
+                    </div>
+
+                    {/* ROWS */}
+                    {filteredDailyRows.length === 0 ? (
+                      <div className="px-5 py-12 text-center">
+                        <p className="text-sm font-semibold text-[#13222b]">
+                          Tidak ada karyawan yang sesuai filter.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDailySearch('');
+                            setDailyFilter('all');
+                          }}
+                          className="mt-3 inline-flex h-8.5 items-center rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
+                        >
+                          Tampilkan semua karyawan
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-[#edf2f0]">
+                        {filteredDailyRows.map((row) => {
+                          const {
+                            emp,
+                            effective,
+                            isRecorded,
+                            hasDraft,
+                            isSaved,
+                            shift,
+                            lateMinutes,
+                            workMinutes,
+                            gp,
+                            ul,
+                            tot,
+                          } = row;
+                          const isHadir = effective?.status === 'Hadir';
+                          const isAbsentStatus = Boolean(effective && effective.status !== 'Hadir');
+                          const hasNote = Boolean(effective?.catatan?.trim());
+                          const isNoteOpen = Boolean(openNoteIds[emp.id]);
+
+                          return (
+                            <div
+                              key={emp.id}
+                              className={`transition-colors ${
+                                hasDraft
+                                  ? 'bg-[#fffbeb]/55'
+                                  : !isRecorded
+                                    ? 'bg-[#fafcfb]'
+                                    : 'bg-white'
+                              }`}
+                            >
+                              <div className="grid grid-cols-1 items-center gap-3 px-4 py-3.5 sm:px-5 xl:grid-cols-[minmax(215px,1.25fr)_252px_minmax(220px,1.15fr)_116px_138px_132px_74px]">
+                                {/* 1. KARYAWAN & SHIFT */}
+                                <div className="flex min-w-0 items-center gap-3">
+                                  <EmployeeAvatar nama={emp.nama} foto={emp.foto} size="md" />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => openEmpDetail(emp.id)}
+                                        className="truncate text-left text-[13.5px] font-bold text-[#13222b] hover:text-[#15803d] hover:underline cursor-pointer"
+                                        title="Lihat profil & slip gaji karyawan"
+                                      >
+                                        {emp.nama}
+                                      </button>
+                                    </div>
+                                    <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px]">
+                                      {emp.jabatan && (
+                                        <>
+                                          <span className="font-medium text-[#475569]">
+                                            {emp.jabatan}
+                                          </span>
+                                          <span aria-hidden="true" className="text-[#cbd5e1]">
+                                            ·
+                                          </span>
+                                        </>
+                                      )}
+                                      <span
+                                        className={
+                                          isSaved
+                                            ? 'font-semibold text-[#15803d]'
+                                            : hasDraft
+                                              ? 'font-semibold text-[#b45309]'
+                                              : 'font-medium text-[#64748b]'
+                                        }
+                                      >
+                                        {isSaved
+                                          ? 'Terverifikasi'
+                                          : hasDraft
+                                            ? 'Draf'
+                                            : 'Belum absen'}
+                                      </span>
+                                      <span aria-hidden="true" className="text-[#cbd5e1]">
+                                        ·
+                                      </span>
+                                      <select
+                                        value={shift}
+                                        disabled={isViewer}
+                                        aria-label={`Shift ${emp.nama}`}
+                                        onChange={(e) => {
+                                          const nextShift = e.target.value as AttendanceShift;
+                                          const preset = SHIFT_PRESETS[nextShift];
+                                          updateAttendanceDraft(ym, day, emp.id, {
+                                            status: effective?.status || 'Hadir',
+                                            shift: nextShift,
+                                            ...(effective?.status === 'Hadir' &&
+                                            !effective?.checkIn &&
+                                            preset.start
+                                              ? { checkIn: preset.start }
+                                              : {}),
+                                          });
+                                        }}
+                                        className="bg-transparent text-[11.5px] font-semibold text-[#475569] outline-none hover:text-[#13222b] focus:text-[#15803d] cursor-pointer disabled:cursor-default"
+                                      >
+                                        {SHIFT_LIST.map((s) => (
+                                          <option key={s.id} value={s.id}>
+                                            {s.shortLabel}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* 2. STATUS KEHADIRAN */}
+                                <div className="flex flex-wrap items-center gap-1">
+                                  {ATTENDANCE_STATUSES.map((st) => {
+                                    const isSelected = effective?.status === st;
+                                    return (
+                                      <button
+                                        key={st}
+                                        type="button"
+                                        disabled={isViewer}
+                                        onClick={() =>
+                                          setAttendanceDraftStatus(ym, day, emp.id, st)
+                                        }
+                                        className={`h-8 shrink-0 rounded-lg px-2.5 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${
+                                          isSelected
+                                            ? STATUS_BUTTON_ACTIVE[st]
+                                            : 'bg-[#f3f7f5] text-[#475569] hover:bg-[#e1ebe7] hover:text-[#13222b]'
+                                        }`}
+                                      >
+                                        {st}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* 3. LOG WAKTU (CHECK-IN / CHECK-OUT) ATAU ALASAN */}
+                                <div>
+                                  {!isRecorded ? (
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        disabled={isViewer}
+                                        onClick={() => clockInEmployee(ym, day, emp.id)}
+                                        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-3 text-xs font-semibold text-white transition hover:bg-[#259f5b] whitespace-nowrap cursor-pointer disabled:opacity-50"
+                                      >
+                                        <LogIn className="h-3.5 w-3.5" />
+                                        <span>Check-in</span>
+                                      </button>
+                                      <span className="text-[11.5px] text-[#64748b]">
+                                        atau pilih status
+                                      </span>
+                                    </div>
+                                  ) : isHadir ? (
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <div className="inline-flex items-center rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-2">
+                                        <span className="text-[10.5px] font-semibold text-[#64748b]">
+                                          In
+                                        </span>
+                                        <input
+                                          type="time"
+                                          disabled={isViewer}
+                                          value={effective?.checkIn || ''}
+                                          onChange={(e) =>
+                                            updateAttendanceDraft(ym, day, emp.id, {
+                                              status: 'Hadir',
+                                              checkIn: e.target.value,
+                                            })
+                                          }
+                                          aria-label={`Jam masuk ${emp.nama}`}
+                                          className="font-mono-num h-7.5 w-[74px] bg-transparent pl-1 text-xs font-semibold text-[#13222b] focus:outline-none"
+                                        />
+                                      </div>
+
+                                      {effective?.checkOut ? (
+                                        <div className="inline-flex items-center rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-2">
+                                          <span className="text-[10.5px] font-semibold text-[#64748b]">
+                                            Out
+                                          </span>
+                                          <input
+                                            type="time"
+                                            disabled={isViewer}
+                                            value={effective.checkOut}
+                                            onChange={(e) =>
+                                              updateAttendanceDraft(ym, day, emp.id, {
+                                                status: 'Hadir',
+                                                checkOut: e.target.value,
+                                              })
+                                            }
+                                            aria-label={`Jam pulang ${emp.nama}`}
+                                            className="font-mono-num h-7.5 w-[74px] bg-transparent pl-1 text-xs font-semibold text-[#13222b] focus:outline-none"
+                                          />
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          disabled={isViewer}
+                                          onClick={() => clockOutEmployee(ym, day, emp.id)}
+                                          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-xl bg-[#0d2530] px-2.5 text-[11.5px] font-semibold text-white transition hover:bg-[#173a4a] whitespace-nowrap cursor-pointer disabled:opacity-50"
+                                          title="Catat jam pulang sekarang"
+                                        >
+                                          <LogOut className="h-3 w-3" />
+                                          <span>Check-out</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                  ) : isAbsentStatus ? (
+                                    <input
+                                      type="text"
+                                      disabled={isViewer}
+                                      value={effective?.catatan || ''}
+                                      onChange={(e) =>
+                                        updateAttendanceDraft(ym, day, emp.id, {
+                                          status: effective!.status,
+                                          catatan: e.target.value,
+                                        })
+                                      }
+                                      placeholder={`Alasan ${effective?.status.toLowerCase()} (opsional)…`}
+                                      aria-label={`Alasan ${effective?.status} ${emp.nama}`}
+                                      className="h-8 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-xs text-[#13222b] transition focus:border-[#2eb86b] focus:bg-white focus:outline-none disabled:opacity-60"
+                                    />
+                                  ) : null}
+                                </div>
+
+                                {/* 4. DURASI & KETEPATAN */}
+                                <div className="text-xs">
+                                  {isHadir ? (
+                                    <div>
+                                      <div className="font-mono-num font-bold text-[#13222b]">
+                                        {workMinutes !== null
+                                          ? formatDurationLabel(workMinutes)
+                                          : effective?.checkIn
+                                            ? 'Berlangsung'
+                                            : '–'}
+                                      </div>
+                                      <div
+                                        className={`mt-0.5 text-[11px] font-semibold ${
+                                          lateMinutes > 0
+                                            ? lateMinutes >= 30
+                                              ? 'text-[#dc2626]'
+                                              : 'text-[#b45309]'
+                                            : effective?.checkIn
+                                              ? 'text-[#15803d]'
+                                              : 'text-[#94a3b8]'
+                                        }`}
+                                      >
+                                        {lateMinutes > 0
+                                          ? `Telat ${lateMinutes} mnt`
+                                          : effective?.checkIn
+                                            ? 'Tepat waktu'
+                                            : 'Tanpa jam'}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[#94a3b8]">–</span>
+                                  )}
+                                </div>
+
+                                {/* 5. LEMBUR STEPPER */}
+                                <div className="flex items-center gap-1.5">
+                                  <div className="inline-flex items-center overflow-hidden rounded-xl border border-[#dce6e2] bg-[#f7faf9]">
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        isViewer || !isRecorded || (effective?.lembur || 0) <= 0
+                                      }
+                                      onClick={() =>
+                                        adjustAttendanceDraftLembur(ym, day, emp.id, -1)
+                                      }
+                                      aria-label={`Kurangi lembur ${emp.nama}`}
+                                      className="flex h-7.5 w-7 items-center justify-center text-[#475569] hover:bg-white hover:text-[#13222b] disabled:opacity-40 cursor-pointer"
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step={1}
+                                      disabled={isViewer}
+                                      value={effective?.lembur || 0}
+                                      onChange={(e) =>
+                                        setAttendanceDraftLembur(
+                                          ym,
+                                          day,
+                                          emp.id,
+                                          parseInt(e.target.value, 10) || 0
+                                        )
+                                      }
+                                      aria-label={`Paket lembur ${emp.nama}`}
+                                      className="font-mono-num h-7.5 w-10 border-x border-[#edf2f0] bg-white text-center text-xs font-bold text-[#13222b] focus:outline-none disabled:bg-[#f3f7f5]"
+                                    />
+                                    <button
+                                      type="button"
+                                      disabled={isViewer}
+                                      onClick={() =>
+                                        adjustAttendanceDraftLembur(ym, day, emp.id, 1)
+                                      }
+                                      aria-label={`Tambah lembur ${emp.nama}`}
+                                      className="flex h-7.5 w-7 items-center justify-center text-[#475569] hover:bg-white hover:text-[#13222b] disabled:opacity-40 cursor-pointer"
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                  <span className="font-mono-num text-[11px] text-[#64748b] whitespace-nowrap">
+                                    ×{formatNum(emp.lemburPerPaket / 1000)}k
+                                  </span>
+                                </div>
+
+                                {/* 6. ESTIMASI GAJI */}
+                                <div className="text-left xl:text-right">
+                                  <div
+                                    className={`font-mono-num text-sm font-bold ${
+                                      isRecorded ? 'text-[#13222b]' : 'text-[#94a3b8]'
+                                    }`}
+                                  >
+                                    {isRecorded ? formatRp(tot) : '–'}
+                                  </div>
+                                  <div className="font-mono-num text-[11px] text-[#64748b]">
+                                    {isRecorded
+                                      ? `Pokok ${formatNum(gp)} · Lmb ${formatNum(ul)}`
+                                      : `${formatRp(emp.gajiHarian)}/hr`}
+                                  </div>
+                                </div>
+
+                                {/* 7. AKSI BARIS (CATATAN & VERIFIKASI CEPAT) */}
+                                <div className="flex items-center justify-start gap-1 xl:justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setOpenNoteIds((prev) => ({
+                                        ...prev,
+                                        [emp.id]: !prev[emp.id],
+                                      }))
+                                    }
+                                    title={hasNote ? `Catatan: ${effective?.catatan}` : 'Tambah catatan HR'}
+                                    aria-label={`Catatan HR ${emp.nama}`}
+                                    className={`flex h-8 w-8 items-center justify-center rounded-xl transition cursor-pointer ${
+                                      hasNote || isNoteOpen
+                                        ? 'bg-[#e6f7ee] text-[#15803d]'
+                                        : 'bg-[#f3f7f5] text-[#64748b] hover:bg-[#e1ebe7] hover:text-[#13222b]'
+                                    }`}
+                                  >
+                                    <MessageSquare className="h-3.5 w-3.5" />
+                                  </button>
+
+                                  {!isViewer && hasDraft && (
+                                    <button
+                                      type="button"
+                                      disabled={absSaving}
+                                      onClick={() => void handleSaveRow(emp)}
+                                      title={`Verifikasi & simpan absensi ${emp.nama}`}
+                                      aria-label={`Simpan absensi ${emp.nama}`}
+                                      className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#2eb86b] text-white transition hover:bg-[#259f5b] disabled:opacity-50 cursor-pointer"
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+
+                                  {isSaved && !hasDraft && (
+                                    <span
+                                      title="Sudah diverifikasi & tersimpan"
+                                      className="flex h-8 w-8 items-center justify-center text-[#2eb86b]"
+                                    >
+                                      <CheckCircle2 className="h-4 w-4" />
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* EXPANDABLE INLINE HR NOTE STRIP */}
+                              {isNoteOpen && (
+                                <div className="flex flex-wrap items-center gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-4 py-2.5 sm:px-5">
+                                  <span className="text-[11px] font-bold text-[#64748b]">
+                                    Catatan HR:
+                                  </span>
+                                  <input
+                                    type="text"
+                                    disabled={isViewer}
+                                    value={effective?.catatan || ''}
+                                    onChange={(e) =>
+                                      updateAttendanceDraft(ym, day, emp.id, {
+                                        status: effective?.status || 'Hadir',
+                                        catatan: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Tulis keterangan keterlambatan, lembur, izin, atau surat dokter…"
+                                    className="h-8 min-w-[220px] flex-1 rounded-lg border border-[#dce6e2] bg-white px-3 text-xs text-[#13222b] focus:border-[#2eb86b] focus:outline-none disabled:opacity-60"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setOpenNoteIds((prev) => ({ ...prev, [emp.id]: false }))
+                                    }
+                                    className="h-8 rounded-lg px-2.5 text-xs font-semibold text-[#64748b] hover:bg-[#e8f0ed] hover:text-[#13222b] cursor-pointer"
+                                  >
+                                    Selesai
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -723,41 +1315,41 @@ export const AbsensiGajiPage: React.FC = () => {
 
           {/* ─────────────────── TAB 2: KALENDER ABSENSI ─────────────────── */}
           {abSub === 'kalender' && (
-            <div className="space-y-5">
+            <div className="space-y-4">
               {/* SUMMARY STRIP */}
-              <div className="grid grid-cols-1 divide-y divide-[#efefea] overflow-hidden rounded-xl border border-[#e5e5df] bg-white sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-                <div className="px-5 py-3.5">
-                  <div className="text-xs font-medium text-[#7c8580]">Hari terisi</div>
-                  <div className="font-mono-num mt-1 text-xl font-semibold text-[#141816]">
+              <div className="grid grid-cols-1 divide-y divide-[#edf2f0] overflow-hidden rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                <div className="px-5 py-4">
+                  <div className="text-xs font-semibold text-[#64748b]">Hari terisi</div>
+                  <div className="font-mono-num mt-1 text-xl font-bold text-[#13222b]">
                     {calendarData.filledDays}
-                    <span className="text-sm font-normal text-[#7c8580]">/{nd}</span>
+                    <span className="text-sm font-medium text-[#64748b]">/{nd}</span>
                   </div>
                 </div>
-                <div className="px-5 py-3.5">
-                  <div className="text-xs font-medium text-[#7c8580]">Tidak hadir</div>
-                  <div className="font-mono-num mt-1 text-xl font-semibold text-[#141816]">
+                <div className="px-5 py-4">
+                  <div className="text-xs font-semibold text-[#64748b]">Tidak hadir</div>
+                  <div className="font-mono-num mt-1 text-xl font-bold text-[#13222b]">
                     {calendarData.totalAbsent}
-                    <span className="ml-1 text-sm font-normal text-[#7c8580]">orang-hari</span>
+                    <span className="ml-1 text-sm font-medium text-[#64748b]">orang-hari</span>
                   </div>
                 </div>
-                <div className="bg-[#f4faf7] px-5 py-3.5">
-                  <div className="text-xs font-medium text-[#14533c]">Total hadir</div>
-                  <div className="font-mono-num mt-1 text-xl font-semibold text-[#14533c]">
+                <div className="bg-[#f2fbf6] px-5 py-4">
+                  <div className="text-xs font-semibold text-[#15803d]">Total hadir</div>
+                  <div className="font-mono-num mt-1 text-xl font-bold text-[#15803d]">
                     {calendarData.totalHadir}
-                    <span className="ml-1 text-sm font-normal text-[#14533c]/75">orang-hari</span>
+                    <span className="ml-1 text-sm font-medium text-[#2eb86b]">orang-hari</span>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(290px,1fr)]">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(290px,1fr)]">
                 {/* CALENDAR GRID */}
-                <div className="rounded-xl border border-[#e5e5df] bg-white p-4 sm:p-5">
+                <div className="rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] sm:p-5">
                   <div className="grid grid-cols-7 gap-1.5">
                     {DAY_NAMES.map((dn, idx) => (
                       <div
                         key={dn}
-                        className={`pb-1.5 text-center text-[11.5px] font-medium ${
-                          idx === 0 ? 'text-[#b91c1c]' : 'text-[#7c8580]'
+                        className={`pb-1.5 text-center text-[11px] font-bold uppercase tracking-[0.04em] ${
+                          idx === 0 ? 'text-[#dc2626]' : 'text-[#64748b]'
                         }`}
                       >
                         {dn.slice(0, 3)}
@@ -765,7 +1357,7 @@ export const AbsensiGajiPage: React.FC = () => {
                     ))}
 
                     {Array.from({ length: calendarLeadingBlanks }).map((_, idx) => (
-                      <div key={`blank-${idx}`} className="h-16 rounded-lg" />
+                      <div key={`blank-${idx}`} className="h-16 rounded-xl" />
                     ))}
 
                     {calendarData.days.map((info) => {
@@ -775,50 +1367,50 @@ export const AbsensiGajiPage: React.FC = () => {
 
                       const toneClass =
                         info.status === 'full'
-                          ? 'border-[#c7dfd3] bg-[#f4faf7]'
+                          ? 'border-[#bbf7d0] bg-[#f2fbf6]'
                           : info.status === 'part'
-                            ? 'border-[#e7c78a] bg-[#fdf9ee]'
+                            ? 'border-[#fcd34d] bg-[#fffbeb]'
                             : info.status === 'zero'
-                              ? 'border-[#f5c2c2] bg-[#fef2f2]'
-                              : 'border-[#efefea] bg-white';
+                              ? 'border-[#fecaca] bg-[#fef2f2]'
+                              : 'border-[#edf2f0] bg-[#f7faf9]/60';
 
                       return (
                         <button
                           key={info.day}
                           type="button"
                           onClick={() => setCalSelDay(info.day)}
-                          className={`relative flex h-16 flex-col items-start justify-between rounded-lg border p-2 text-left transition-colors cursor-pointer hover:border-[#14533c] ${toneClass} ${
-                            isSel ? 'border-[#14533c] ring-1 ring-[#14533c]' : ''
+                          className={`relative flex h-16 flex-col items-start justify-between rounded-xl border p-2 text-left transition-colors cursor-pointer hover:border-[#2eb86b] ${toneClass} ${
+                            isSel ? 'border-[#2eb86b] ring-2 ring-[#2eb86b]' : ''
                           }`}
                         >
                           <div className="flex w-full items-center justify-between">
                             <span
-                              className={`font-mono-num text-xs font-semibold ${
-                                isSunday ? 'text-[#b91c1c]' : 'text-[#141816]'
+                              className={`font-mono-num text-xs font-bold ${
+                                isSunday ? 'text-[#dc2626]' : 'text-[#13222b]'
                               }`}
                             >
                               {info.day}
                             </span>
                             {isToday && (
-                              <span className="text-[10px] font-semibold text-[#14533c]">
+                              <span className="text-[10px] font-bold text-[#15803d]">
                                 Hari ini
                               </span>
                             )}
                           </div>
                           {info.recordedCount > 0 ? (
-                            <div className="font-mono-num flex flex-wrap items-center gap-x-1.5 text-[11px] font-semibold">
-                              <span className="text-[#14533c]">{info.hadirCount}H</span>
+                            <div className="font-mono-num flex flex-wrap items-center gap-x-1.5 text-[11px] font-bold">
+                              <span className="text-[#15803d]">{info.hadirCount}H</span>
                               {info.absentCount > 0 && (
-                                <span className="text-[#b91c1c]">{info.absentCount}A</span>
+                                <span className="text-[#dc2626]">{info.absentCount}A</span>
                               )}
                               {info.pendingCount > 0 && (
-                                <span className="text-[10px] font-normal text-[#b45309]">
+                                <span className="text-[10px] font-medium text-[#b45309]">
                                   +{info.pendingCount}
                                 </span>
                               )}
                             </div>
                           ) : (
-                            <span className="text-[11px] text-[#9aa39d]">–</span>
+                            <span className="text-[11px] text-[#94a3b8]">–</span>
                           )}
                         </button>
                       );
@@ -827,15 +1419,15 @@ export const AbsensiGajiPage: React.FC = () => {
                 </div>
 
                 {/* SELECTED DAY ASIDE */}
-                <aside className="overflow-hidden rounded-xl border border-[#e5e5df] bg-white">
+                <aside className="overflow-hidden rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
                   {selectedCalInfo ? (
                     <>
-                      <div className="border-b border-[#efefea] px-5 py-4">
-                        <h3 className="font-display text-[15px] font-semibold text-[#141816]">
+                      <div className="border-b border-[#edf2f0] px-5 py-4">
+                        <h3 className="font-display text-[15px] font-bold text-[#13222b]">
                           {DAY_NAMES[getDayOfWeek(ym, selectedCalInfo.day)]}, {selectedCalInfo.day}{' '}
                           {monthLabel}
                         </h3>
-                        <p className="mt-0.5 text-xs text-[#7c8580]">
+                        <p className="mt-0.5 text-xs text-[#64748b]">
                           {selectedCalInfo.people.length === 0
                             ? 'Belum ada karyawan.'
                             : `${selectedCalInfo.hadirCount} hadir · ${selectedCalInfo.absentCount} tidak hadir${
@@ -846,12 +1438,12 @@ export const AbsensiGajiPage: React.FC = () => {
                         </p>
                       </div>
 
-                      <div className="divide-y divide-[#efefea]">
+                      <div className="divide-y divide-[#edf2f0]">
                         {/* HADIR */}
                         {selectedCalInfo.people.filter((p) => p.record?.status === 'Hadir').length >
                           0 && (
                           <div className="px-5 py-3.5">
-                            <div className="mb-2 text-xs font-semibold text-[#14533c]">
+                            <div className="mb-2 text-xs font-bold text-[#15803d]">
                               Hadir (
                               {
                                 selectedCalInfo.people.filter((p) => p.record?.status === 'Hadir')
@@ -859,32 +1451,58 @@ export const AbsensiGajiPage: React.FC = () => {
                               }
                               )
                             </div>
-                            <div className="divide-y divide-[#efefea]">
+                            <div className="divide-y divide-[#edf2f0]">
                               {selectedCalInfo.people
                                 .filter((p) => p.record?.status === 'Hadir')
-                                .map(({ emp, record, isArchived }) => (
-                                  <div
-                                    key={emp.id}
-                                    className="flex items-center justify-between gap-2 py-2"
-                                  >
-                                    <div className="flex min-w-0 items-center gap-2">
-                                      <EmployeeAvatar nama={emp.nama} foto={emp.foto} size="sm" />
-                                      <button
-                                        type="button"
-                                        onClick={() => openEmpDetail(emp.id)}
-                                        className="truncate text-xs font-medium text-[#141816] hover:text-[#14533c] hover:underline cursor-pointer"
-                                      >
-                                        {emp.nama}
-                                        {isArchived ? ' (Arsip)' : ''}
-                                      </button>
+                                .map(({ emp, record, isArchived }) => {
+                                  const late = calcLateMinutes(
+                                    record?.shift || emp.shiftDefault,
+                                    record?.checkIn
+                                  );
+                                  return (
+                                    <div
+                                      key={emp.id}
+                                      className="flex items-start justify-between gap-2 py-2"
+                                    >
+                                      <div className="flex min-w-0 items-start gap-2">
+                                        <EmployeeAvatar nama={emp.nama} foto={emp.foto} size="sm" />
+                                        <div className="min-w-0">
+                                          <button
+                                            type="button"
+                                            onClick={() => openEmpDetail(emp.id)}
+                                            className="block truncate text-left text-xs font-semibold text-[#13222b] hover:text-[#15803d] hover:underline cursor-pointer"
+                                          >
+                                            {emp.nama}
+                                            {isArchived ? ' (Arsip)' : ''}
+                                          </button>
+                                          {(record?.checkIn || record?.shift || late > 0) && (
+                                            <div className="font-mono-num mt-0.5 text-[11px] text-[#64748b]">
+                                              {record?.shift || emp.shiftDefault || 'Full'}
+                                              {record?.checkIn
+                                                ? ` · ${record.checkIn}${record.checkOut ? `–${record.checkOut}` : ''}`
+                                                : ''}
+                                              {late > 0 && (
+                                                <span className="ml-1 font-semibold text-[#b45309]">
+                                                  · Telat {late}m
+                                                </span>
+                                              )}
+                                            </div>
+                                          )}
+                                          {record?.catatan && (
+                                            <div className="mt-0.5 truncate text-[11px] text-[#64748b]">
+                                              {record.catatan}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {record && Number(record.lembur) > 0 && (
+                                        <span className="font-mono-num shrink-0 text-[11px] font-semibold text-[#64748b] whitespace-nowrap">
+                                          lembur {record.lembur} pkt
+                                        </span>
+                                      )}
                                     </div>
-                                    {record && Number(record.lembur) > 0 && (
-                                      <span className="font-mono-num text-[11px] font-medium text-[#7c8580] whitespace-nowrap">
-                                        lembur {record.lembur} pkt
-                                      </span>
-                                    )}
-                                  </div>
-                                ))}
+                                  );
+                                })}
                             </div>
                           </div>
                         )}
@@ -894,7 +1512,7 @@ export const AbsensiGajiPage: React.FC = () => {
                           (p) => p.record && p.record.status !== 'Hadir'
                         ).length > 0 && (
                           <div className="px-5 py-3.5">
-                            <div className="mb-2 text-xs font-semibold text-[#b91c1c]">
+                            <div className="mb-2 text-xs font-bold text-[#dc2626]">
                               Tidak hadir (
                               {
                                 selectedCalInfo.people.filter(
@@ -903,28 +1521,35 @@ export const AbsensiGajiPage: React.FC = () => {
                               }
                               )
                             </div>
-                            <div className="divide-y divide-[#efefea]">
+                            <div className="divide-y divide-[#edf2f0]">
                               {selectedCalInfo.people
                                 .filter((p) => p.record && p.record.status !== 'Hadir')
                                 .map(({ emp, record, isArchived }) => (
                                   <div
                                     key={emp.id}
-                                    className="flex items-center justify-between gap-2 py-2"
+                                    className="flex items-start justify-between gap-2 py-2"
                                   >
-                                    <div className="flex min-w-0 items-center gap-2">
+                                    <div className="flex min-w-0 items-start gap-2">
                                       <EmployeeAvatar nama={emp.nama} foto={emp.foto} size="sm" />
-                                      <button
-                                        type="button"
-                                        onClick={() => openEmpDetail(emp.id)}
-                                        className="truncate text-xs font-medium text-[#141816] hover:text-[#14533c] hover:underline cursor-pointer"
-                                      >
-                                        {emp.nama}
-                                        {isArchived ? ' (Arsip)' : ''}
-                                      </button>
+                                      <div className="min-w-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => openEmpDetail(emp.id)}
+                                          className="block truncate text-left text-xs font-semibold text-[#13222b] hover:text-[#15803d] hover:underline cursor-pointer"
+                                        >
+                                          {emp.nama}
+                                          {isArchived ? ' (Arsip)' : ''}
+                                        </button>
+                                        {record?.catatan && (
+                                          <div className="mt-0.5 truncate text-[11px] text-[#64748b]">
+                                            {record.catatan}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                     {record && (
                                       <span
-                                        className={`text-xs font-semibold ${STATUS_TEXT_COLOR[record.status]}`}
+                                        className={`shrink-0 text-xs font-bold ${STATUS_TEXT_COLOR[record.status]}`}
                                       >
                                         {record.status}
                                       </span>
@@ -938,10 +1563,10 @@ export const AbsensiGajiPage: React.FC = () => {
                         {/* BELUM DIISI */}
                         {selectedCalInfo.people.filter((p) => !p.record).length > 0 && (
                           <div className="px-5 py-3.5">
-                            <div className="mb-2 text-xs font-medium text-[#7c8580]">
+                            <div className="mb-2 text-xs font-semibold text-[#64748b]">
                               Belum diisi ({selectedCalInfo.people.filter((p) => !p.record).length})
                             </div>
-                            <div className="divide-y divide-[#efefea]">
+                            <div className="divide-y divide-[#edf2f0]">
                               {selectedCalInfo.people
                                 .filter((p) => !p.record)
                                 .map(({ emp }) => (
@@ -951,11 +1576,11 @@ export const AbsensiGajiPage: React.FC = () => {
                                   >
                                     <div className="flex min-w-0 items-center gap-2">
                                       <EmployeeAvatar nama={emp.nama} foto={emp.foto} size="sm" />
-                                      <span className="truncate text-xs font-medium text-[#565e59]">
+                                      <span className="truncate text-xs font-semibold text-[#475569]">
                                         {emp.nama}
                                       </span>
                                     </div>
-                                    <span className="text-xs text-[#9aa39d]">–</span>
+                                    <span className="text-xs text-[#94a3b8]">–</span>
                                   </div>
                                 ))}
                             </div>
@@ -971,13 +1596,13 @@ export const AbsensiGajiPage: React.FC = () => {
 
           {/* ─────────────────── TAB 3: MASTER KARYAWAN ─────────────────── */}
           {abSub === 'karyawan' && (
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <div>
-                  <h2 className="font-display text-base font-semibold text-[#141816]">
+                  <h2 className="font-display text-base font-bold text-[#13222b]">
                     Master Karyawan
                   </h2>
-                  <p className="mt-0.5 text-xs text-[#7c8580]">
+                  <p className="mt-0.5 text-xs text-[#64748b]">
                     Sumber identitas, tarif gaji harian, tarif lembur per paket, dan siklus
                     penggajian
                   </p>
@@ -986,7 +1611,7 @@ export const AbsensiGajiPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowArchiveList((v) => !v)}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-[#565e59] hover:text-[#14533c] cursor-pointer"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-white px-3 text-xs font-semibold text-[#475569] shadow-xs transition hover:text-[#15803d] cursor-pointer"
                   >
                     <Archive className="h-3.5 w-3.5" />
                     <span>
@@ -997,14 +1622,14 @@ export const AbsensiGajiPage: React.FC = () => {
               </div>
 
               {masterEmployees.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#dcdcd4] bg-white py-14 text-center">
-                  <Users className="mb-3 h-8 w-8 text-[#9aa39d]" />
-                  <p className="text-sm font-medium text-[#141816]">Belum ada karyawan.</p>
+                <div className="flex flex-col items-center justify-center rounded-2xl bg-white py-14 text-center shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
+                  <Users className="mb-3 h-8 w-8 text-[#94a3b8]" />
+                  <p className="text-sm font-semibold text-[#13222b]">Belum ada karyawan.</p>
                   {!isViewer && (
                     <button
                       type="button"
                       onClick={openAddModal}
-                      className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                      className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
                     >
                       <Plus className="h-4 w-4" />
                       <span>Tambah karyawan</span>
@@ -1012,11 +1637,12 @@ export const AbsensiGajiPage: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-xl border border-[#e5e5df] bg-white">
+                <div className="overflow-x-auto rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
                   <table className="w-full border-collapse text-left text-[13px]">
                     <thead>
-                      <tr className="border-b border-[#e5e5df] bg-[#fafaf8] text-xs font-medium text-[#7c8580]">
-                        <th className="px-4 py-3">Nama</th>
+                      <tr className="border-b border-[#edf2f0] bg-[#f7faf9] text-[11px] font-bold uppercase tracking-[0.04em] text-[#64748b]">
+                        <th className="px-4 py-3">Nama &amp; Jabatan</th>
+                        <th className="px-4 py-3">Shift Default</th>
                         <th className="px-4 py-3 text-right">Gaji harian</th>
                         <th className="px-4 py-3 text-right">Tarif lembur</th>
                         <th className="px-4 py-3 text-center">Siklus</th>
@@ -1024,11 +1650,11 @@ export const AbsensiGajiPage: React.FC = () => {
                         {!isViewer && <th className="px-4 py-3 text-right">Aksi</th>}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#efefea]">
+                    <tbody className="divide-y divide-[#edf2f0]">
                       {masterEmployees.map((emp) => (
                         <tr
                           key={emp.id}
-                          className={`hover:bg-[#fafaf8] ${emp.aktif ? '' : 'opacity-60'}`}
+                          className={`transition hover:bg-[#f7faf9] ${emp.aktif ? '' : 'opacity-60'}`}
                         >
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2.5">
@@ -1037,31 +1663,35 @@ export const AbsensiGajiPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => openEmpDetail(emp.id)}
-                                  className="font-semibold text-[#141816] hover:text-[#14533c] hover:underline cursor-pointer"
+                                  className="font-bold text-[#13222b] hover:text-[#15803d] hover:underline cursor-pointer"
                                 >
                                   {emp.nama}
                                 </button>
-                                <div className="font-mono-num text-[11px] text-[#7c8580]">
-                                  ID: {emp.id}
+                                <div className="text-[11px] text-[#64748b]">
+                                  {emp.jabatan ? `${emp.jabatan} · ` : ''}
+                                  <span className="font-mono-num">ID: {emp.id}</span>
                                 </div>
                               </div>
                             </div>
                           </td>
-                          <td className="font-mono-num px-4 py-3 text-right font-semibold text-[#141816] whitespace-nowrap">
+                          <td className="px-4 py-3 text-xs font-semibold text-[#475569] whitespace-nowrap">
+                            {SHIFT_PRESETS[emp.shiftDefault || 'Full'].shortLabel}
+                          </td>
+                          <td className="font-mono-num px-4 py-3 text-right font-bold text-[#13222b] whitespace-nowrap">
                             {formatRp(emp.gajiHarian)}
-                            <span className="font-sans text-[11px] font-normal text-[#7c8580]">
+                            <span className="font-sans text-[11px] font-medium text-[#64748b]">
                               {' '}
                               /hari
                             </span>
                           </td>
-                          <td className="font-mono-num px-4 py-3 text-right font-semibold text-[#141816] whitespace-nowrap">
+                          <td className="font-mono-num px-4 py-3 text-right font-bold text-[#13222b] whitespace-nowrap">
                             {formatRp(emp.lemburPerPaket)}
-                            <span className="font-sans text-[11px] font-normal text-[#7c8580]">
+                            <span className="font-sans text-[11px] font-medium text-[#64748b]">
                               {' '}
                               /paket
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-center text-xs font-medium text-[#565e59] whitespace-nowrap">
+                          <td className="px-4 py-3 text-center text-xs font-semibold text-[#475569] whitespace-nowrap">
                             {emp.siklusGaji === 'bulanan' ? 'Bulanan' : '2x/bulan'}
                           </td>
                           <td className="px-4 py-3 text-center">
@@ -1069,10 +1699,10 @@ export const AbsensiGajiPage: React.FC = () => {
                               type="button"
                               disabled={isViewer}
                               onClick={() => toggleEmployeeActive(emp.id)}
-                              className={`h-7 shrink-0 rounded-md border px-2.5 text-xs font-medium whitespace-nowrap transition-colors cursor-pointer disabled:cursor-default ${
+                              className={`h-7 shrink-0 rounded-lg px-2.5 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer disabled:cursor-default ${
                                 emp.aktif
-                                  ? 'border-[#c7dfd3] bg-[#f4faf7] text-[#14533c] hover:bg-[#e5f2ec]'
-                                  : 'border-[#dcdcd4] bg-[#fafaf8] text-[#7c8580] hover:bg-[#f1f1ec]'
+                                  ? 'bg-[#e6f7ee] text-[#15803d] hover:bg-[#d1f0e0]'
+                                  : 'bg-[#f1f5f9] text-[#64748b] hover:bg-[#e2e8f0]'
                               }`}
                               title={
                                 isViewer
@@ -1089,7 +1719,7 @@ export const AbsensiGajiPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => openEditModal(emp)}
-                                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#e5e5df] bg-white px-2.5 text-xs font-medium text-[#141816] hover:bg-[#f4f4ef] cursor-pointer"
+                                  className="inline-flex h-8 items-center gap-1 rounded-xl bg-[#f3f7f5] px-2.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
                                 >
                                   <Edit3 className="h-3.5 w-3.5" />
                                   <span>Edit</span>
@@ -1097,7 +1727,7 @@ export const AbsensiGajiPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => setArchiveTarget(emp)}
-                                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-[#f5c2c2] bg-white px-2.5 text-xs font-medium text-[#b91c1c] hover:bg-[#fef2f2] cursor-pointer"
+                                  className="inline-flex h-8 items-center gap-1 rounded-xl bg-[#fee2e2] px-2.5 text-xs font-semibold text-[#b91c1c] transition hover:bg-[#fecaca] cursor-pointer"
                                 >
                                   <Archive className="h-3.5 w-3.5" />
                                   <span>Arsipkan</span>
@@ -1116,38 +1746,38 @@ export const AbsensiGajiPage: React.FC = () => {
               {showArchiveList && archivedEmployees.length > 0 && (
                 <div className="space-y-2.5 pt-2">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-display text-sm font-semibold text-[#565e59]">
+                    <h3 className="font-display text-sm font-bold text-[#475569]">
                       Arsip Karyawan ({archivedEmployees.length})
                     </h3>
-                    <span className="text-xs text-[#7c8580]">
+                    <span className="text-xs text-[#64748b]">
                       Riwayat absensi &amp; penggajian tetap dipertahankan
                     </span>
                   </div>
-                  <div className="overflow-x-auto rounded-xl border border-[#e5e5df] bg-white">
+                  <div className="overflow-x-auto rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
                     <table className="w-full border-collapse text-left text-[13px]">
                       <thead>
-                        <tr className="border-b border-[#e5e5df] bg-[#fafaf8] text-xs font-medium text-[#7c8580]">
+                        <tr className="border-b border-[#edf2f0] bg-[#f7faf9] text-[11px] font-bold uppercase tracking-[0.04em] text-[#64748b]">
                           <th className="px-4 py-2.5">Nama</th>
                           <th className="px-4 py-2.5 text-right">Tarif terakhir</th>
                           <th className="px-4 py-2.5 text-right">Aksi</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#efefea]">
+                      <tbody className="divide-y divide-[#edf2f0]">
                         {archivedEmployees.map((emp) => (
-                          <tr key={emp.id} className="hover:bg-[#fafaf8]">
+                          <tr key={emp.id} className="hover:bg-[#f7faf9]">
                             <td className="px-4 py-2.5">
                               <div className="flex items-center gap-2.5">
                                 <EmployeeAvatar nama={emp.nama} foto={emp.foto} size="sm" />
                                 <button
                                   type="button"
                                   onClick={() => openEmpDetail(emp.id)}
-                                  className="font-medium text-[#565e59] hover:text-[#14533c] hover:underline cursor-pointer"
+                                  className="font-semibold text-[#475569] hover:text-[#15803d] hover:underline cursor-pointer"
                                 >
                                   {emp.nama}
                                 </button>
                               </div>
                             </td>
-                            <td className="font-mono-num px-4 py-2.5 text-right text-xs text-[#7c8580] whitespace-nowrap">
+                            <td className="font-mono-num px-4 py-2.5 text-right text-xs text-[#64748b] whitespace-nowrap">
                               {formatRp(emp.gajiHarian)}/hr · Lembur {formatRp(emp.lemburPerPaket)}
                               /pkt
                             </td>
@@ -1156,7 +1786,7 @@ export const AbsensiGajiPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => openEmpDetail(emp.id)}
-                                  className="h-7 rounded-md border border-[#e5e5df] bg-white px-2.5 text-xs font-medium text-[#565e59] hover:bg-[#f4f4ef] cursor-pointer"
+                                  className="h-7.5 rounded-xl bg-[#f3f7f5] px-2.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
                                 >
                                   Histori
                                 </button>
@@ -1167,7 +1797,7 @@ export const AbsensiGajiPage: React.FC = () => {
                                       restoreArchivedEmployee(emp.id);
                                       showToast(`"${emp.nama}" dipulihkan ke daftar karyawan aktif.`);
                                     }}
-                                    className="inline-flex h-7 items-center gap-1 rounded-md border border-[#c7dfd3] bg-[#f4faf7] px-2.5 text-xs font-medium text-[#14533c] hover:bg-[#e5f2ec] cursor-pointer"
+                                    className="inline-flex h-7.5 items-center gap-1 rounded-xl bg-[#e6f7ee] px-2.5 text-xs font-semibold text-[#15803d] transition hover:bg-[#d1f0e0] cursor-pointer"
                                   >
                                     <RotateCcw className="h-3 w-3" />
                                     <span>Pulihkan</span>
@@ -1187,13 +1817,13 @@ export const AbsensiGajiPage: React.FC = () => {
 
           {/* ─────────────────── TAB 4: REKAP GAJI ─────────────────── */}
           {abSub === 'rekap' && (
-            <div className="space-y-5">
+            <div className="space-y-4">
               {/* CYCLE SWITCHER BAR */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-3">
                   {renderCycleSwitcher()}
-                  <span className="text-xs text-[#7c8580]">
-                    <strong className="font-medium text-[#141816]">{payrollRange.label}</strong>
+                  <span className="text-xs text-[#64748b]">
+                    <strong className="font-semibold text-[#13222b]">{payrollRange.label}</strong>
                     {payrollRange.isBiweekly
                       ? ` · Dibayar tgl ${payrollRange.payDay} setelah toko tutup`
                       : ''}
@@ -1208,7 +1838,7 @@ export const AbsensiGajiPage: React.FC = () => {
                       omPeriod: abCycle === 'p1' ? 1 : abCycle === 'p2' ? 2 : 0,
                     })
                   }
-                  className="no-print inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-[#14533c] hover:underline whitespace-nowrap cursor-pointer"
+                  className="no-print inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-[#15803d] shadow-xs transition hover:bg-[#e6f7ee] whitespace-nowrap cursor-pointer"
                 >
                   <span>Sinkron dengan OMSET</span>
                   <ExternalLink className="h-3.5 w-3.5" />
@@ -1216,39 +1846,39 @@ export const AbsensiGajiPage: React.FC = () => {
               </div>
 
               {/* SUMMARY STRIP */}
-              <div className="grid grid-cols-1 divide-y divide-[#efefea] overflow-hidden rounded-xl border border-[#e5e5df] bg-white sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-                <div className="bg-[#f4faf7] px-5 py-3.5">
-                  <div className="text-xs font-medium text-[#14533c]">Total gaji periode</div>
-                  <div className="font-mono-num mt-1 text-xl font-semibold text-[#14533c]">
+              <div className="grid grid-cols-1 divide-y divide-[#edf2f0] overflow-hidden rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                <div className="bg-[#f2fbf6] px-5 py-4">
+                  <div className="text-xs font-semibold text-[#15803d]">Total gaji periode</div>
+                  <div className="font-mono-num mt-1 text-xl font-bold text-[#15803d]">
                     {formatRp(payrollRows.totalGaji)}
                   </div>
                 </div>
-                <div className="px-5 py-3.5">
-                  <div className="text-xs font-medium text-[#7c8580]">Hari hadir</div>
-                  <div className="font-mono-num mt-1 text-xl font-semibold text-[#141816]">
+                <div className="px-5 py-4">
+                  <div className="text-xs font-semibold text-[#64748b]">Hari hadir</div>
+                  <div className="font-mono-num mt-1 text-xl font-bold text-[#13222b]">
                     {payrollRows.totalHadir}
-                    <span className="ml-1 text-sm font-normal text-[#7c8580]">hari</span>
+                    <span className="ml-1 text-sm font-medium text-[#64748b]">hari</span>
                   </div>
                 </div>
-                <div className="px-5 py-3.5">
-                  <div className="text-xs font-medium text-[#7c8580]">Lembur</div>
-                  <div className="font-mono-num mt-1 text-xl font-semibold text-[#141816]">
+                <div className="px-5 py-4">
+                  <div className="text-xs font-semibold text-[#64748b]">Lembur</div>
+                  <div className="font-mono-num mt-1 text-xl font-bold text-[#13222b]">
                     {payrollRows.totalLemburPaket}
-                    <span className="ml-1 text-sm font-normal text-[#7c8580]">paket</span>
+                    <span className="ml-1 text-sm font-medium text-[#64748b]">paket</span>
                   </div>
                 </div>
               </div>
 
               {/* PAYROLL TABLE */}
               {payrollRows.list.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-[#dcdcd4] bg-white py-12 text-center text-sm text-[#7c8580]">
+                <div className="rounded-2xl bg-white py-12 text-center text-sm text-[#64748b] shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
                   Belum ada karyawan untuk direkap.
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-xl border border-[#e5e5df] bg-white">
+                <div className="overflow-x-auto rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
                   <table className="w-full border-collapse text-left text-[13px]">
                     <thead>
-                      <tr className="border-b border-[#e5e5df] bg-[#fafaf8] text-xs font-medium text-[#7c8580]">
+                      <tr className="border-b border-[#edf2f0] bg-[#f7faf9] text-[11px] font-bold uppercase tracking-[0.04em] text-[#64748b]">
                         <th className="px-4 py-3">Nama</th>
                         <th className="px-4 py-3 text-right">Hadir</th>
                         <th
@@ -1263,9 +1893,9 @@ export const AbsensiGajiPage: React.FC = () => {
                         <th className="px-4 py-3 text-right">Total</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#efefea]">
+                    <tbody className="divide-y divide-[#edf2f0]">
                       {payrollRows.list.map(({ emp, isArchived, calc }) => (
-                        <tr key={emp.id} className="hover:bg-[#fafaf8]">
+                        <tr key={emp.id} className="hover:bg-[#f7faf9]">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2.5">
                               <EmployeeAvatar nama={emp.nama} foto={emp.foto} size="sm" />
@@ -1273,11 +1903,11 @@ export const AbsensiGajiPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => openEmpDetail(emp.id)}
-                                  className="font-semibold text-[#141816] hover:text-[#14533c] hover:underline cursor-pointer"
+                                  className="font-bold text-[#13222b] hover:text-[#15803d] hover:underline cursor-pointer"
                                 >
                                   {emp.nama}
                                 </button>
-                                <div className="text-[11px] text-[#7c8580]">
+                                <div className="text-[11px] text-[#64748b]">
                                   {emp.siklusGaji === 'bulanan' ? 'Bulanan' : '2x/bulan'}
                                   {isArchived
                                     ? ' · Arsip'
@@ -1288,37 +1918,37 @@ export const AbsensiGajiPage: React.FC = () => {
                               </div>
                             </div>
                           </td>
-                          <td className="font-mono-num px-4 py-3 text-right font-medium text-[#141816] whitespace-nowrap">
+                          <td className="font-mono-num px-4 py-3 text-right font-semibold text-[#13222b] whitespace-nowrap">
                             {calc.h} hr
                           </td>
                           <td
-                            className="font-mono-num px-4 py-3 text-right text-[#7c8580] whitespace-nowrap"
+                            className="font-mono-num px-4 py-3 text-right text-[#64748b] whitespace-nowrap"
                             title="Libur · Izin · Sakit · Alfa"
                           >
                             {calc.off > 0 ? `${calc.l}·${calc.iz}·${calc.s}·${calc.a}` : '–'}
                           </td>
-                          <td className="font-mono-num px-4 py-3 text-right font-medium text-[#141816] whitespace-nowrap">
+                          <td className="font-mono-num px-4 py-3 text-right font-semibold text-[#13222b] whitespace-nowrap">
                             {calc.lm} pkt
                           </td>
-                          <td className="font-mono-num px-4 py-3 text-right text-[#565e59] whitespace-nowrap">
+                          <td className="font-mono-num px-4 py-3 text-right text-[#475569] whitespace-nowrap">
                             {formatRp(calc.gp)}
                           </td>
-                          <td className="font-mono-num px-4 py-3 text-right text-[#565e59] whitespace-nowrap">
+                          <td className="font-mono-num px-4 py-3 text-right text-[#475569] whitespace-nowrap">
                             {formatRp(calc.ul)}
                           </td>
-                          <td className="font-mono-num px-4 py-3 text-right font-semibold text-[#14533c] whitespace-nowrap">
+                          <td className="font-mono-num px-4 py-3 text-right font-bold text-[#15803d] whitespace-nowrap">
                             {formatRp(calc.tot)}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr className="border-t border-[#111614] bg-[#111614] font-semibold text-white">
+                      <tr className="bg-[#0d2530] font-bold text-white">
                         <td className="px-4 py-3">Total ({payrollRows.list.length} karyawan)</td>
                         <td className="font-mono-num px-4 py-3 text-right whitespace-nowrap">
                           {payrollRows.totalHadir} hr
                         </td>
-                        <td className="px-4 py-3 text-right text-white/50">–</td>
+                        <td className="px-4 py-3 text-right text-[#94a3b8]">–</td>
                         <td className="font-mono-num px-4 py-3 text-right whitespace-nowrap">
                           {payrollRows.totalLemburPaket} pkt
                         </td>
@@ -1341,9 +1971,9 @@ export const AbsensiGajiPage: React.FC = () => {
 
           {/* ─────────────────── TAB 5: DETAIL & SLIP KARYAWAN ─────────────────── */}
           {abSub === 'detail' && (
-            <div className="space-y-5">
+            <div className="space-y-4">
               {!selectedEmployee || !detailViewData ? (
-                <div className="rounded-xl border border-dashed border-[#dcdcd4] bg-white py-12 text-center text-sm text-[#7c8580]">
+                <div className="rounded-2xl bg-white py-12 text-center text-sm text-[#64748b] shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
                   Karyawan tidak ditemukan.
                 </div>
               ) : (
@@ -1354,7 +1984,7 @@ export const AbsensiGajiPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={backFromDetail}
-                        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] hover:bg-[#f4f4ef] whitespace-nowrap cursor-pointer"
+                        className="inline-flex h-8.5 shrink-0 items-center gap-1.5 rounded-xl bg-white px-3.5 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#f3f7f5] whitespace-nowrap cursor-pointer"
                       >
                         <ArrowLeft className="h-3.5 w-3.5" />
                         <span>Kembali</span>
@@ -1363,7 +1993,7 @@ export const AbsensiGajiPage: React.FC = () => {
                         value={selectedEmployee.id}
                         onChange={(e) => setSelectedEmpId(e.target.value)}
                         aria-label="Pilih karyawan"
-                        className="h-8 rounded-lg border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] focus:border-[#14533c] focus:outline-none"
+                        className="h-8.5 rounded-xl bg-white px-3 text-xs font-semibold text-[#13222b] shadow-xs focus:ring-2 focus:ring-[#2eb86b] focus:outline-none cursor-pointer"
                       >
                         {allEmployeesWithArchive.map((e) => (
                           <option key={e.id} value={e.id}>
@@ -1380,8 +2010,8 @@ export const AbsensiGajiPage: React.FC = () => {
                     {renderCycleSwitcher()}
                   </div>
 
-                  {/* PROFILE HEADER */}
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#e5e5df] pb-4">
+                  {/* PROFILE HEADER CARD */}
+                  <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white px-5 py-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
                     <div className="flex items-center gap-3.5">
                       <EmployeeAvatar
                         nama={selectedEmployee.nama}
@@ -1389,42 +2019,42 @@ export const AbsensiGajiPage: React.FC = () => {
                         size="lg"
                       />
                       <div>
-                        <h2 className="font-display text-lg font-semibold text-[#141816]">
+                        <h2 className="font-display text-lg font-bold text-[#13222b]">
                           {selectedEmployee.nama}
                         </h2>
-                        <p className="text-xs text-[#7c8580]">
+                        <p className="text-xs text-[#64748b]">
                           Rincian gaji · {payrollRange.label}
                         </p>
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#565e59]">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#475569]">
                       <span className="font-mono-num">
                         Gaji pokok{' '}
-                        <strong className="font-semibold text-[#141816]">
+                        <strong className="font-bold text-[#13222b]">
                           {formatRp(selectedEmployee.gajiHarian)}
                         </strong>
                         /hari
                       </span>
-                      <span aria-hidden="true" className="text-[#c5c5bc]">
+                      <span aria-hidden="true" className="text-[#cbd5e1]">
                         ·
                       </span>
                       <span className="font-mono-num">
                         Lembur{' '}
-                        <strong className="font-semibold text-[#141816]">
+                        <strong className="font-bold text-[#13222b]">
                           {formatRp(selectedEmployee.lemburPerPaket)}
                         </strong>
                         /paket
                       </span>
-                      <span aria-hidden="true" className="text-[#c5c5bc]">
+                      <span aria-hidden="true" className="text-[#cbd5e1]">
                         ·
                       </span>
                       <span
-                        className={`font-medium ${
+                        className={`rounded-md px-2 py-0.5 font-semibold ${
                           detailViewData.archived
-                            ? 'text-[#7c8580]'
+                            ? 'bg-[#f1f5f9] text-[#64748b]'
                             : selectedEmployee.aktif
-                              ? 'text-[#14533c]'
-                              : 'text-[#7c8580]'
+                              ? 'bg-[#e6f7ee] text-[#15803d]'
+                              : 'bg-[#f1f5f9] text-[#64748b]'
                         }`}
                       >
                         {detailViewData.archived
@@ -1433,7 +2063,7 @@ export const AbsensiGajiPage: React.FC = () => {
                             ? 'Aktif'
                             : 'Nonaktif'}
                       </span>
-                      <span aria-hidden="true" className="text-[#c5c5bc]">
+                      <span aria-hidden="true" className="text-[#cbd5e1]">
                         ·
                       </span>
                       <span>
@@ -1443,80 +2073,80 @@ export const AbsensiGajiPage: React.FC = () => {
                   </div>
 
                   {/* HERO TOTALS */}
-                  <div className="grid grid-cols-1 divide-y divide-[#efefea] overflow-hidden rounded-xl border border-[#e5e5df] bg-white sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-                    <div className="bg-[#f4faf7] px-5 py-3.5">
-                      <div className="text-xs font-medium text-[#14533c]">Total gaji diterima</div>
-                      <div className="font-mono-num mt-1 text-xl font-semibold text-[#14533c]">
+                  <div className="grid grid-cols-1 divide-y divide-[#edf2f0] overflow-hidden rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                    <div className="bg-[#f2fbf6] px-5 py-4">
+                      <div className="text-xs font-semibold text-[#15803d]">Total gaji diterima</div>
+                      <div className="font-mono-num mt-1 text-xl font-bold text-[#15803d]">
                         {formatRp(detailViewData.calc.tot)}
                       </div>
                     </div>
-                    <div className="px-5 py-3.5">
-                      <div className="text-xs font-medium text-[#7c8580]">Hadir</div>
-                      <div className="font-mono-num mt-1 text-xl font-semibold text-[#141816]">
+                    <div className="px-5 py-4">
+                      <div className="text-xs font-semibold text-[#64748b]">Hadir</div>
+                      <div className="font-mono-num mt-1 text-xl font-bold text-[#13222b]">
                         {detailViewData.calc.h}
-                        <span className="ml-1 text-sm font-normal text-[#7c8580]">
+                        <span className="ml-1 text-sm font-medium text-[#64748b]">
                           / {payrollRange.count} hari
                         </span>
                       </div>
                     </div>
-                    <div className="px-5 py-3.5">
-                      <div className="text-xs font-medium text-[#7c8580]">Lembur</div>
-                      <div className="font-mono-num mt-1 text-xl font-semibold text-[#141816]">
+                    <div className="px-5 py-4">
+                      <div className="text-xs font-semibold text-[#64748b]">Lembur</div>
+                      <div className="font-mono-num mt-1 text-xl font-bold text-[#13222b]">
                         {detailViewData.calc.lm}
-                        <span className="ml-1 text-sm font-normal text-[#7c8580]">paket</span>
+                        <span className="ml-1 text-sm font-medium text-[#64748b]">paket</span>
                       </div>
                     </div>
                   </div>
 
                   {/* SLIP BREAKDOWN TABLE */}
                   <div className="space-y-2">
-                    <h3 className="text-xs font-semibold text-[#565e59]">Rincian slip gaji</h3>
-                    <div className="overflow-x-auto rounded-xl border border-[#e5e5df] bg-white">
+                    <h3 className="text-xs font-bold text-[#475569]">Rincian slip gaji</h3>
+                    <div className="overflow-x-auto rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
                       <table className="w-full border-collapse text-left text-[13px]">
                         <thead>
-                          <tr className="border-b border-[#e5e5df] bg-[#fafaf8] text-xs font-medium text-[#7c8580]">
+                          <tr className="border-b border-[#edf2f0] bg-[#f7faf9] text-[11px] font-bold uppercase tracking-[0.04em] text-[#64748b]">
                             <th className="px-4 py-2.5">Komponen</th>
                             <th className="px-4 py-2.5 text-right">Jumlah</th>
                             <th className="px-4 py-2.5 text-right">Tarif</th>
                             <th className="px-4 py-2.5 text-right">Subtotal</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#efefea]">
+                        <tbody className="divide-y divide-[#edf2f0]">
                           <tr>
-                            <td className="px-4 py-2.5 font-medium text-[#141816]">Gaji pokok</td>
-                            <td className="font-mono-num px-4 py-2.5 text-right text-[#565e59]">
+                            <td className="px-4 py-2.5 font-semibold text-[#13222b]">Gaji pokok</td>
+                            <td className="font-mono-num px-4 py-2.5 text-right text-[#475569]">
                               {detailViewData.calc.h} hari
                             </td>
-                            <td className="font-mono-num px-4 py-2.5 text-right text-[#7c8580]">
+                            <td className="font-mono-num px-4 py-2.5 text-right text-[#64748b]">
                               {detailViewData.calc.hasMixedRates
                                 ? 'Sesuai riwayat'
                                 : formatRp(detailViewData.calc.effectiveGajiRate)}
                             </td>
-                            <td className="font-mono-num px-4 py-2.5 text-right font-semibold text-[#141816]">
+                            <td className="font-mono-num px-4 py-2.5 text-right font-bold text-[#13222b]">
                               {formatRp(detailViewData.calc.gp)}
                             </td>
                           </tr>
                           <tr>
-                            <td className="px-4 py-2.5 font-medium text-[#141816]">Uang lembur</td>
-                            <td className="font-mono-num px-4 py-2.5 text-right text-[#565e59]">
+                            <td className="px-4 py-2.5 font-semibold text-[#13222b]">Uang lembur</td>
+                            <td className="font-mono-num px-4 py-2.5 text-right text-[#475569]">
                               {detailViewData.calc.lm} paket
                             </td>
-                            <td className="font-mono-num px-4 py-2.5 text-right text-[#7c8580]">
+                            <td className="font-mono-num px-4 py-2.5 text-right text-[#64748b]">
                               {detailViewData.calc.hasMixedRates
                                 ? 'Sesuai riwayat'
                                 : formatRp(detailViewData.calc.effectiveLemburRate)}
                             </td>
-                            <td className="font-mono-num px-4 py-2.5 text-right font-semibold text-[#141816]">
+                            <td className="font-mono-num px-4 py-2.5 text-right font-bold text-[#13222b]">
                               {formatRp(detailViewData.calc.ul)}
                             </td>
                           </tr>
                         </tbody>
                         <tfoot>
-                          <tr className="border-t border-[#e5e5df] bg-[#f4faf7] font-semibold">
-                            <td colSpan={3} className="px-4 py-2.5 text-[#141816]">
+                          <tr className="border-t border-[#edf2f0] bg-[#f2fbf6] font-bold">
+                            <td colSpan={3} className="px-4 py-3 text-[#13222b]">
                               Total diterima
                             </td>
-                            <td className="font-mono-num px-4 py-2.5 text-right text-[#14533c]">
+                            <td className="font-mono-num px-4 py-3 text-right text-[#15803d]">
                               {formatRp(detailViewData.calc.tot)}
                             </td>
                           </tr>
@@ -1524,7 +2154,7 @@ export const AbsensiGajiPage: React.FC = () => {
                       </table>
                     </div>
                     {detailViewData.offBreakdown && (
-                      <p className="text-xs text-[#7c8580]">
+                      <p className="text-xs text-[#64748b]">
                         Tidak hadir: {detailViewData.offBreakdown}
                       </p>
                     )}
@@ -1532,17 +2162,19 @@ export const AbsensiGajiPage: React.FC = () => {
 
                   {/* DAILY HISTORY TABLE */}
                   <div className="space-y-2">
-                    <h3 className="text-xs font-semibold text-[#565e59]">
+                    <h3 className="text-xs font-bold text-[#475569]">
                       Riwayat harian (
                       {detailShowAll ? `1–${nd}` : `${payrollRange.start}–${payrollRange.end}`}{' '}
                       {monthLabel})
                     </h3>
-                    <div className="overflow-x-auto rounded-xl border border-[#e5e5df] bg-white">
+                    <div className="overflow-x-auto rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
                       <table className="w-full border-collapse text-left text-[13px]">
                         <thead>
-                          <tr className="border-b border-[#e5e5df] bg-[#fafaf8] text-xs font-medium text-[#7c8580]">
+                          <tr className="border-b border-[#edf2f0] bg-[#f7faf9] text-[11px] font-bold uppercase tracking-[0.04em] text-[#64748b]">
                             <th className="px-4 py-2.5">Tanggal</th>
                             <th className="px-4 py-2.5">Status</th>
+                            <th className="px-4 py-2.5">Shift &amp; Jam Kerja</th>
+                            <th className="px-4 py-2.5">Catatan</th>
                             <th className="px-4 py-2.5 text-right">Lembur</th>
                             <th className="px-4 py-2.5 text-right">Gaji pokok</th>
                             <th className="px-4 py-2.5 text-right">Uang lembur</th>
@@ -1552,58 +2184,92 @@ export const AbsensiGajiPage: React.FC = () => {
                             )}
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#efefea]">
-                          {detailViewData.dayRows.map((dr) => (
-                            <tr
-                              key={dr.day}
-                              className={`hover:bg-[#fafaf8] ${dr.inRange ? '' : 'opacity-45'}`}
-                            >
-                              <td
-                                className={`px-4 py-2 font-medium whitespace-nowrap ${
-                                  dr.dow === 0 ? 'text-[#b91c1c]' : 'text-[#141816]'
-                                }`}
+                        <tbody className="divide-y divide-[#edf2f0]">
+                          {detailViewData.dayRows.map((dr) => {
+                            const lateMins =
+                              dr.rec?.status === 'Hadir'
+                                ? calcLateMinutes(
+                                    dr.rec.shift || selectedEmployee.shiftDefault,
+                                    dr.rec.checkIn
+                                  )
+                                : 0;
+                            const durMins =
+                              dr.rec?.status === 'Hadir'
+                                ? calcWorkDurationMinutes(dr.rec.checkIn, dr.rec.checkOut)
+                                : null;
+                            return (
+                              <tr
+                                key={dr.day}
+                                className={`hover:bg-[#f7faf9] ${dr.inRange ? '' : 'opacity-45'}`}
                               >
-                                {dr.dayName}, {dr.day} {MONTH_NAMES[monthNum - 1]}
-                              </td>
-                              <td className="px-4 py-2 whitespace-nowrap">
-                                {dr.rec ? (
-                                  <span
-                                    className={`text-xs font-semibold ${STATUS_TEXT_COLOR[dr.rec.status]}`}
-                                  >
-                                    {dr.rec.status}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-[#9aa39d]">Belum diisi</span>
-                                )}
-                              </td>
-                              <td className="font-mono-num px-4 py-2 text-right text-[#7c8580] whitespace-nowrap">
-                                {dr.lm > 0 ? `${dr.lm} paket` : '–'}
-                              </td>
-                              <td className="font-mono-num px-4 py-2 text-right text-[#565e59] whitespace-nowrap">
-                                {dr.gp > 0 ? formatRp(dr.gp) : '–'}
-                              </td>
-                              <td className="font-mono-num px-4 py-2 text-right text-[#565e59] whitespace-nowrap">
-                                {dr.ul > 0 ? formatRp(dr.ul) : '–'}
-                              </td>
-                              <td className="font-mono-num px-4 py-2 text-right font-semibold text-[#141816] whitespace-nowrap">
-                                {dr.rec ? formatRp(dr.tot) : '–'}
-                              </td>
-                              {!isViewer && !detailViewData.archived && (
-                                <td className="no-print px-4 py-2 text-right whitespace-nowrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setMonthAndDay(ym, dr.day);
-                                      setAbSub('harian');
-                                    }}
-                                    className="h-7 rounded-md border border-[#e5e5df] bg-white px-2.5 text-[11.5px] font-medium text-[#565e59] hover:bg-[#f4f4ef] cursor-pointer"
-                                  >
-                                    Edit
-                                  </button>
+                                <td
+                                  className={`px-4 py-2.5 font-semibold whitespace-nowrap ${
+                                    dr.dow === 0 ? 'text-[#dc2626]' : 'text-[#13222b]'
+                                  }`}
+                                >
+                                  {dr.dayName}, {dr.day} {MONTH_NAMES[monthNum - 1]}
                                 </td>
-                              )}
-                            </tr>
-                          ))}
+                                <td className="px-4 py-2.5 whitespace-nowrap">
+                                  {dr.rec ? (
+                                    <span
+                                      className={`text-xs font-bold ${STATUS_TEXT_COLOR[dr.rec.status]}`}
+                                    >
+                                      {dr.rec.status}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-[#94a3b8]">Belum diisi</span>
+                                  )}
+                                </td>
+                                <td className="font-mono-num px-4 py-2.5 text-xs text-[#475569] whitespace-nowrap">
+                                  {dr.rec?.status === 'Hadir' ? (
+                                    <span>
+                                      {dr.rec.shift || selectedEmployee.shiftDefault || 'Full'}
+                                      {dr.rec.checkIn
+                                        ? ` · ${dr.rec.checkIn}${dr.rec.checkOut ? `–${dr.rec.checkOut}` : ''}`
+                                        : ''}
+                                      {durMins !== null ? ` (${formatDurationLabel(durMins)})` : ''}
+                                      {lateMins > 0 && (
+                                        <span className="ml-1.5 font-semibold text-[#b45309]">
+                                          Telat {lateMins}m
+                                        </span>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[#94a3b8]">–</span>
+                                  )}
+                                </td>
+                                <td className="max-w-[200px] truncate px-4 py-2.5 text-xs text-[#64748b]">
+                                  {dr.rec?.catatan || '–'}
+                                </td>
+                                <td className="font-mono-num px-4 py-2.5 text-right text-[#64748b] whitespace-nowrap">
+                                  {dr.lm > 0 ? `${dr.lm} paket` : '–'}
+                                </td>
+                                <td className="font-mono-num px-4 py-2.5 text-right text-[#475569] whitespace-nowrap">
+                                  {dr.gp > 0 ? formatRp(dr.gp) : '–'}
+                                </td>
+                                <td className="font-mono-num px-4 py-2.5 text-right text-[#475569] whitespace-nowrap">
+                                  {dr.ul > 0 ? formatRp(dr.ul) : '–'}
+                                </td>
+                                <td className="font-mono-num px-4 py-2.5 text-right font-bold text-[#13222b] whitespace-nowrap">
+                                  {dr.rec ? formatRp(dr.tot) : '–'}
+                                </td>
+                                {!isViewer && !detailViewData.archived && (
+                                  <td className="no-print px-4 py-2.5 text-right whitespace-nowrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setMonthAndDay(ym, dr.day);
+                                        setAbSub('harian');
+                                      }}
+                                      className="h-7 rounded-lg bg-[#f3f7f5] px-2.5 text-[11.5px] font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
+                                    >
+                                      Edit
+                                    </button>
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -1615,23 +2281,32 @@ export const AbsensiGajiPage: React.FC = () => {
         </div>
       </div>
 
-      {/* BOTTOM FOOTER BAR */}
-      <div className="no-print flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#e5e5df] bg-white px-4 py-2.5 sm:px-6">
+      {/* FLOATING BOTTOM FOOTER BAR */}
+      <div className="no-print mx-4 mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.06)] md:mx-6 md:px-5">
         {abSub === 'harian' && (
           <>
-            <div className="text-xs text-[#565e59]">
-              {dailyModel.pending > 0 ? (
-                <span>
-                  <strong className="text-[#b45309]">{dailyModel.pending} karyawan</strong> belum
-                  disimpan
-                </span>
-              ) : absUnsent ? (
-                <strong className="text-[#b91c1c]">
-                  Belum terkirim ke database — klik Simpan absensi
+            <div className="text-xs text-[#475569]">
+              {absUnsent ? (
+                <strong className="text-[#dc2626]">
+                  Belum terkirim ke database — klik Simpan &amp; Verifikasi
                 </strong>
+              ) : dailyModel.draftRowCount > 0 ? (
+                <span>
+                  <strong className="text-[#b45309]">{dailyModel.draftRowCount} karyawan</strong>{' '}
+                  menunggu verifikasi
+                  {dailyModel.unrecordedCount > 0
+                    ? ` · ${dailyModel.unrecordedCount} belum absen`
+                    : ''}
+                </span>
+              ) : dailyModel.unrecordedCount > 0 ? (
+                <span>
+                  <strong className="text-[#13222b]">{dailyModel.unrecordedCount} karyawan</strong>{' '}
+                  belum absen · {dailyModel.saved} sudah terverifikasi
+                </span>
               ) : (
-                <span className="font-medium text-[#15803d]">
-                  Semua absensi hari ini sudah tersimpan
+                <span className="font-semibold text-[#15803d]">
+                  Seluruh absensi hari ini ({dailyModel.saved}/{activeEmployees.length}) sudah
+                  terverifikasi
                 </span>
               )}
             </div>
@@ -1639,24 +2314,35 @@ export const AbsensiGajiPage: React.FC = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setAllAttendanceHadir(ym, day)}
-                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#141816] hover:bg-[#f4f4ef] whitespace-nowrap cursor-pointer"
+                  onClick={() =>
+                    setAllAttendanceHadir(ym, day, {
+                      onlyUnrecorded: false,
+                      withScheduledTimes: true,
+                    })
+                  }
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] whitespace-nowrap cursor-pointer"
                 >
-                  <UserCheck className="h-3.5 w-3.5 text-[#14533c]" />
+                  <UserCheck className="h-3.5 w-3.5 text-[#2eb86b]" />
                   <span>Semua hadir</span>
                 </button>
                 <button
                   type="button"
-                  disabled={absSaving}
+                  disabled={absSaving || (dailyModel.recordedCount === 0 && !absUnsent)}
                   onClick={handleSaveToday}
-                  className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-4 text-xs font-medium text-white transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 ${
-                    dailyModel.pending > 0 || absUnsent
-                      ? 'bg-[#b45309] hover:bg-[#92400e]'
-                      : 'bg-[#14533c] hover:bg-[#0f3f2d]'
+                  className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-4 text-xs font-semibold text-white transition-colors whitespace-nowrap cursor-pointer disabled:cursor-not-allowed disabled:opacity-45 ${
+                    dailyModel.draftRowCount > 0 || absUnsent
+                      ? 'bg-[#f59e0b] hover:bg-[#d97706]'
+                      : 'bg-[#2eb86b] hover:bg-[#259f5b]'
                   }`}
                 >
                   <Save className="h-3.5 w-3.5" />
-                  <span>{absSaving ? 'Menyimpan…' : 'Simpan absensi'}</span>
+                  <span>
+                    {absSaving
+                      ? 'Menyimpan…'
+                      : dailyModel.draftRowCount > 0
+                        ? `Simpan & Verifikasi (${dailyModel.draftRowCount})`
+                        : 'Simpan absensi'}
+                  </span>
                 </button>
               </div>
             )}
@@ -1665,12 +2351,12 @@ export const AbsensiGajiPage: React.FC = () => {
 
         {abSub === 'kalender' && (
           <>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-[#7c8580]">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-[#64748b]">
               <span>
-                <strong className="text-[#14533c]">H</strong> = Hadir
+                <strong className="text-[#15803d]">H</strong> = Hadir
               </span>
               <span>
-                <strong className="text-[#b91c1c]">A</strong> = Tidak hadir
+                <strong className="text-[#dc2626]">A</strong> = Tidak hadir
               </span>
               <span>
                 <strong className="text-[#b45309]">+N</strong> = Belum diisi
@@ -1682,7 +2368,7 @@ export const AbsensiGajiPage: React.FC = () => {
                 setMonthAndDay(ym, calSelDay);
                 setAbSub('harian');
               }}
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] whitespace-nowrap cursor-pointer"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] whitespace-nowrap cursor-pointer"
             >
               <Calendar className="h-3.5 w-3.5" />
               <span>Buka absen tgl {calSelDay}</span>
@@ -1692,16 +2378,16 @@ export const AbsensiGajiPage: React.FC = () => {
 
         {abSub === 'karyawan' && (
           <>
-            <div className="text-xs text-[#7c8580]">
-              <strong className="text-[#141816]">{activeEmployees.length}</strong> aktif dari{' '}
-              <strong className="text-[#141816]">{masterEmployees.length}</strong> karyawan
+            <div className="text-xs text-[#64748b]">
+              <strong className="text-[#13222b]">{activeEmployees.length}</strong> aktif dari{' '}
+              <strong className="text-[#13222b]">{masterEmployees.length}</strong> karyawan
               {archivedEmployees.length > 0 ? ` · ${archivedEmployees.length} arsip` : ''}
             </div>
             {!isViewer && (
               <button
                 type="button"
                 onClick={openAddModal}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] whitespace-nowrap cursor-pointer"
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] whitespace-nowrap cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
                 <span>Tambah karyawan</span>
@@ -1712,12 +2398,12 @@ export const AbsensiGajiPage: React.FC = () => {
 
         {abSub === 'rekap' && (
           <>
-            <div className="text-xs text-[#7c8580]">Absen = libur · izin · sakit · alfa</div>
+            <div className="text-xs text-[#64748b]">Absen = libur · izin · sakit · alfa</div>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#141816] hover:bg-[#f4f4ef] whitespace-nowrap cursor-pointer"
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] whitespace-nowrap cursor-pointer"
               >
                 <Printer className="h-3.5 w-3.5" />
                 <span>Cetak</span>
@@ -1725,7 +2411,7 @@ export const AbsensiGajiPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCopyRekapWA}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] whitespace-nowrap cursor-pointer"
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] whitespace-nowrap cursor-pointer"
               >
                 <Copy className="h-3.5 w-3.5" />
                 <span>Salin untuk WhatsApp</span>
@@ -1739,7 +2425,7 @@ export const AbsensiGajiPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setDetailShowAll((v) => !v)}
-              className="inline-flex h-9 shrink-0 items-center rounded-lg border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#141816] hover:bg-[#f4f4ef] whitespace-nowrap cursor-pointer"
+              className="inline-flex h-9 shrink-0 items-center rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] whitespace-nowrap cursor-pointer"
             >
               {detailShowAll ? 'Tampilkan periode ini saja' : 'Tampilkan sebulan penuh'}
             </button>
@@ -1747,7 +2433,7 @@ export const AbsensiGajiPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#141816] hover:bg-[#f4f4ef] whitespace-nowrap cursor-pointer"
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] whitespace-nowrap cursor-pointer"
               >
                 <Printer className="h-3.5 w-3.5" />
                 <span>Cetak</span>
@@ -1755,7 +2441,7 @@ export const AbsensiGajiPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleCopySingleSlipWA(selectedEmployee)}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] whitespace-nowrap cursor-pointer"
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] whitespace-nowrap cursor-pointer"
               >
                 <Copy className="h-3.5 w-3.5" />
                 <span>Salin slip WhatsApp</span>
@@ -1768,20 +2454,20 @@ export const AbsensiGajiPage: React.FC = () => {
       {/* ─────────────────── MODAL: TAMBAH / EDIT KARYAWAN ─────────────────── */}
       {empModalOpen && (
         <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#111614]/55 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
           onClick={(e) => {
             if (e.target === e.currentTarget) setEmpModalOpen(false);
           }}
         >
-          <div className="w-full max-w-[460px] overflow-hidden rounded-xl border border-[#e5e5df] bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-[#efefea] px-5 py-4">
+          <div className="w-full max-w-[460px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f0] px-5 py-4">
               <div className="flex items-center gap-3">
                 <EmployeeAvatar nama={formNama || '?'} foto={formFoto} size="md" />
                 <div>
-                  <h3 className="font-display text-base font-semibold text-[#141816]">
+                  <h3 className="font-display text-base font-bold text-[#13222b]">
                     {editEmp ? 'Edit Data Karyawan' : 'Tambah Karyawan Baru'}
                   </h3>
-                  <p className="text-xs text-[#7c8580]">
+                  <p className="text-xs text-[#64748b]">
                     Atur nama, foto, gaji harian, tarif lembur, dan siklus gaji
                   </p>
                 </div>
@@ -1790,7 +2476,7 @@ export const AbsensiGajiPage: React.FC = () => {
                 type="button"
                 onClick={() => setEmpModalOpen(false)}
                 aria-label="Tutup modal"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-[#7c8580] hover:bg-[#f4f4ef] hover:text-[#141816] cursor-pointer"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1799,14 +2485,14 @@ export const AbsensiGajiPage: React.FC = () => {
             <form onSubmit={handleSubmitEmployee}>
               <div className="space-y-3.5 px-5 py-4">
                 {formError && (
-                  <div className="rounded-lg border border-[#f5c2c2] bg-[#fef2f2] px-3 py-2 text-xs font-medium text-[#991b1b]">
+                  <div className="rounded-xl bg-[#fee2e2] px-3 py-2 text-xs font-semibold text-[#b91c1c]">
                     {formError}
                   </div>
                 )}
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-[#141816]">
-                    Nama Karyawan <span className="text-[#b91c1c]">*</span>
+                  <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
+                    Nama Karyawan <span className="text-[#ef4444]">*</span>
                   </label>
                   <input
                     type="text"
@@ -1815,12 +2501,43 @@ export const AbsensiGajiPage: React.FC = () => {
                     value={formNama}
                     onChange={(e) => setFormNama(e.target.value)}
                     placeholder="Contoh: Budi Santoso"
-                    className="h-10 w-full rounded-lg border border-[#dcdcd4] px-3 text-sm text-[#141816] focus:border-[#14533c] focus:outline-none"
+                    className="h-10 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-sm text-[#13222b] transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20 focus:outline-none"
                   />
                 </div>
 
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
+                      Jabatan / Posisi
+                    </label>
+                    <input
+                      type="text"
+                      value={formJabatan}
+                      onChange={(e) => setFormJabatan(e.target.value)}
+                      placeholder="Contoh: Barista, Kasir"
+                      className="h-10 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-sm text-[#13222b] transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
+                      Shift Default
+                    </label>
+                    <select
+                      value={formShiftDefault}
+                      onChange={(e) => setFormShiftDefault(e.target.value as AttendanceShift)}
+                      className="h-10 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-sm text-[#13222b] transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20 focus:outline-none"
+                    >
+                      {SHIFT_LIST.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-[#141816]">
+                  <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
                     Link Foto (opsional)
                   </label>
                   <input
@@ -1828,9 +2545,9 @@ export const AbsensiGajiPage: React.FC = () => {
                     value={formFoto}
                     onChange={(e) => setFormFoto(e.target.value)}
                     placeholder="https://lh3.googleusercontent.com/d/ID_FILE"
-                    className="h-10 w-full rounded-lg border border-[#dcdcd4] px-3 text-sm text-[#141816] focus:border-[#14533c] focus:outline-none"
+                    className="h-10 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-sm text-[#13222b] transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20 focus:outline-none"
                   />
-                  <p className="mt-1 text-[11px] text-[#7c8580]">
+                  <p className="mt-1 text-[11px] text-[#64748b]">
                     Mendukung link Google Drive (dibagikan &ldquo;Siapa saja yang memiliki
                     link&rdquo;) atau kolom Foto URL di sheet KARYAWAN.
                   </p>
@@ -1838,7 +2555,7 @@ export const AbsensiGajiPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-[#141816]">
+                    <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
                       Gaji Harian (Rp)
                     </label>
                     <input
@@ -1847,11 +2564,11 @@ export const AbsensiGajiPage: React.FC = () => {
                       step={500}
                       value={formGaji}
                       onChange={(e) => setFormGaji(e.target.value)}
-                      className="font-mono-num h-10 w-full rounded-lg border border-[#dcdcd4] px-3 text-sm font-semibold text-[#141816] focus:border-[#14533c] focus:outline-none"
+                      className="font-mono-num h-10 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-sm font-bold text-[#13222b] transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-[#141816]">
+                    <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
                       Tarif Lembur / Paket (Rp)
                     </label>
                     <input
@@ -1860,13 +2577,13 @@ export const AbsensiGajiPage: React.FC = () => {
                       step={500}
                       value={formLembur}
                       onChange={(e) => setFormLembur(e.target.value)}
-                      className="font-mono-num h-10 w-full rounded-lg border border-[#dcdcd4] px-3 text-sm font-semibold text-[#141816] focus:border-[#14533c] focus:outline-none"
+                      className="font-mono-num h-10 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-sm font-bold text-[#13222b] transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20 focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-[#141816]">
+                  <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
                     Siklus Penggajian
                   </label>
                   <select
@@ -1874,7 +2591,7 @@ export const AbsensiGajiPage: React.FC = () => {
                     onChange={(e) =>
                       setFormSiklus(e.target.value === 'bulanan' ? 'bulanan' : '14hari')
                     }
-                    className="h-10 w-full rounded-lg border border-[#dcdcd4] bg-white px-3 text-sm text-[#141816] focus:border-[#14533c] focus:outline-none"
+                    className="h-10 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-sm text-[#13222b] transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20 focus:outline-none"
                   >
                     <option value="14hari">
                       2x Sebulan (Tahap 1: 1–15 &amp; Tahap 2: 16–akhir)
@@ -1884,18 +2601,18 @@ export const AbsensiGajiPage: React.FC = () => {
                 </div>
 
                 {editEmp && isEditingTariffChanged && (
-                  <div className="rounded-lg border border-[#e7d4a5] bg-[#fdf9ee] p-3 text-xs text-[#8a5308]">
-                    <p className="font-semibold">Perlindungan histori tarif</p>
+                  <div className="rounded-xl bg-[#fef3c7] p-3 text-xs text-[#92400e]">
+                    <p className="font-bold">Perlindungan histori tarif</p>
                     <p className="mt-0.5 leading-relaxed">
                       Secara default, perubahan tarif hanya berlaku untuk absensi baru agar histori
                       penggajian &amp; OMSET yang sudah tersimpan tidak berubah secara retroaktif.
                     </p>
-                    <label className="mt-2 flex items-center gap-2 font-medium text-[#78350f] cursor-pointer">
+                    <label className="mt-2 flex items-center gap-2 font-semibold text-[#78350f] cursor-pointer">
                       <input
                         type="checkbox"
                         checked={formApplyRetroactive}
                         onChange={(e) => setFormApplyRetroactive(e.target.checked)}
-                        className="h-3.5 w-3.5 rounded accent-[#b45309]"
+                        className="h-3.5 w-3.5 rounded accent-[#f59e0b]"
                       />
                       <span>Terapkan tarif baru ke seluruh histori tersimpan</span>
                     </label>
@@ -1903,17 +2620,17 @@ export const AbsensiGajiPage: React.FC = () => {
                 )}
               </div>
 
-              <div className="flex items-center justify-end gap-2 border-t border-[#efefea] bg-[#fafaf8] px-5 py-3.5">
+              <div className="flex items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3.5">
                 <button
                   type="button"
                   onClick={() => setEmpModalOpen(false)}
-                  className="h-9 rounded-lg border border-[#e5e5df] bg-white px-4 text-xs font-medium text-[#565e59] hover:bg-[#f4f4ef] cursor-pointer"
+                  className="h-9 rounded-xl bg-white px-4 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
                 >
                   <Check className="h-3.5 w-3.5" />
                   <span>{editEmp ? 'Simpan perubahan' : 'Tambah karyawan'}</span>
@@ -1927,16 +2644,16 @@ export const AbsensiGajiPage: React.FC = () => {
       {/* ─────────────────── MODAL: KONFIRMASI ARSIP KARYAWAN ─────────────────── */}
       {archiveTarget && (
         <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#111614]/55 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
           onClick={(e) => {
             if (e.target === e.currentTarget) setArchiveTarget(null);
           }}
         >
-          <div className="w-full max-w-[420px] overflow-hidden rounded-xl border border-[#e5e5df] bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-[#efefea] px-5 py-4">
+          <div className="w-full max-w-[420px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f0] px-5 py-4">
               <div className="flex items-center gap-2">
-                <Archive className="h-4 w-4 text-[#b91c1c]" />
-                <h3 className="font-display text-base font-semibold text-[#141816]">
+                <Archive className="h-4 w-4 text-[#ef4444]" />
+                <h3 className="font-display text-base font-bold text-[#13222b]">
                   Arsipkan Karyawan
                 </h3>
               </div>
@@ -1944,30 +2661,30 @@ export const AbsensiGajiPage: React.FC = () => {
                 type="button"
                 onClick={() => setArchiveTarget(null)}
                 aria-label="Tutup"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-[#7c8580] hover:bg-[#f4f4ef] hover:text-[#141816] cursor-pointer"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="px-5 py-4">
-              <p className="text-xs leading-relaxed text-[#565e59]">
-                Arsipkan <strong className="text-[#141816]">{archiveTarget.nama}</strong> dari
+              <p className="text-xs leading-relaxed text-[#475569]">
+                Arsipkan <strong className="text-[#13222b]">{archiveTarget.nama}</strong> dari
                 daftar karyawan aktif? Seluruh riwayat absensi, slip gaji, dan perhitungan gaji di
                 OMSET tetap tersimpan utuh dan karyawan dapat dipulihkan kapan saja.
               </p>
             </div>
-            <div className="flex items-center justify-end gap-2 border-t border-[#efefea] bg-[#fafaf8] px-5 py-3.5">
+            <div className="flex items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3.5">
               <button
                 type="button"
                 onClick={() => setArchiveTarget(null)}
-                className="h-9 rounded-lg border border-[#e5e5df] bg-white px-4 text-xs font-medium text-[#565e59] hover:bg-[#f4f4ef] cursor-pointer"
+                className="h-9 rounded-xl bg-white px-4 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleConfirmArchive}
-                className="h-9 rounded-lg bg-[#b91c1c] px-4 text-xs font-medium text-white hover:bg-[#991b1b] cursor-pointer"
+                className="h-9 rounded-xl bg-[#ef4444] px-4 text-xs font-semibold text-white transition hover:bg-[#dc2626] cursor-pointer"
               >
                 Ya, Arsipkan
               </button>
@@ -1979,18 +2696,18 @@ export const AbsensiGajiPage: React.FC = () => {
       {/* ─────────────────── MODAL: FALLBACK SALIN TEKS WHATSAPP ─────────────────── */}
       {waModal && (
         <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#111614]/55 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
           onClick={(e) => {
             if (e.target === e.currentTarget) setWaModal(null);
           }}
         >
-          <div className="w-full max-w-[520px] overflow-hidden rounded-xl border border-[#e5e5df] bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-[#efefea] px-5 py-4">
+          <div className="w-full max-w-[520px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+            <div className="flex items-center justify-between border-b border-[#edf2f0] px-5 py-4">
               <div>
-                <h3 className="font-display text-base font-semibold text-[#141816]">
+                <h3 className="font-display text-base font-bold text-[#13222b]">
                   Salin {waModal.title}
                 </h3>
-                <p className="text-xs text-[#7c8580]">
+                <p className="text-xs text-[#64748b]">
                   Salin teks di bawah ini lalu tempel (paste) ke WhatsApp
                 </p>
               </div>
@@ -1998,7 +2715,7 @@ export const AbsensiGajiPage: React.FC = () => {
                 type="button"
                 onClick={() => setWaModal(null)}
                 aria-label="Tutup"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-[#7c8580] hover:bg-[#f4f4ef] hover:text-[#141816] cursor-pointer"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2009,14 +2726,14 @@ export const AbsensiGajiPage: React.FC = () => {
                 value={waModal.text}
                 rows={13}
                 onFocus={(e) => e.currentTarget.select()}
-                className="font-mono-num w-full rounded-lg border border-[#dcdcd4] bg-[#fafaf8] p-3 text-xs leading-relaxed text-[#141816] focus:border-[#14533c] focus:outline-none"
+                className="font-mono-num w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] p-3 text-xs leading-relaxed text-[#13222b] focus:border-[#2eb86b] focus:outline-none"
               />
             </div>
-            <div className="flex items-center justify-end gap-2 border-t border-[#efefea] bg-[#fafaf8] px-5 py-3.5">
+            <div className="flex items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3.5">
               <button
                 type="button"
                 onClick={() => setWaModal(null)}
-                className="h-9 rounded-lg border border-[#e5e5df] bg-white px-4 text-xs font-medium text-[#565e59] hover:bg-[#f4f4ef] cursor-pointer"
+                className="h-9 rounded-xl bg-white px-4 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
               >
                 Tutup
               </button>
@@ -2031,7 +2748,7 @@ export const AbsensiGajiPage: React.FC = () => {
                     showToast('Gunakan Ctrl+C / Cmd+C pada kotak teks di atas.', 'err');
                   }
                 }}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
               >
                 <Copy className="h-3.5 w-3.5" />
                 <span>Salin teks</span>

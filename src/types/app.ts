@@ -15,6 +15,7 @@ export type OmsetSubTab = 'harian' | 'pengeluaran' | 'kalender' | 'grafik' | 're
 export type AbsensiSubTab = 'harian' | 'kalender' | 'karyawan' | 'rekap' | 'detail';
 export type PayrollCycle = 'p1' | 'p2' | 'full';
 export type AttendanceStatus = 'Hadir' | 'Izin' | 'Sakit' | 'Alfa' | 'Libur';
+export type AttendanceShift = 'Pagi' | 'Siang' | 'Full' | 'Fleksibel';
 
 export interface MasterItem {
   id: string;
@@ -43,6 +44,8 @@ export interface Employee {
   id: string;
   nama: string;
   foto?: string;
+  jabatan?: string;
+  shiftDefault?: AttendanceShift;
   gajiHarian: number;
   lemburPerPaket: number;
   siklusGaji?: '14hari' | 'bulanan';
@@ -55,6 +58,12 @@ export interface AttendanceRecord {
   /** Snapshot tarif saat absensi disimpan agar perubahan tarif tidak mengubah histori lama secara retroaktif */
   gajiHarian?: number;
   lemburPerPaket?: number;
+  /** Field HRIS opsional (100% kompatibel dengan data lama) */
+  shift?: AttendanceShift;
+  checkIn?: string; // HH:mm
+  checkOut?: string; // HH:mm
+  catatan?: string;
+  updatedAt?: string;
 }
 
 export interface OmsetExpenseItem {

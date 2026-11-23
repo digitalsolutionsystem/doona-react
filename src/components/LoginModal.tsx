@@ -43,25 +43,25 @@ export const LoginModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#111614]/50 p-5 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0d2530]/45 p-5 backdrop-blur-[2px]"
       onClick={(e) => {
         if (e.target === e.currentTarget && !isLocked) setShowLoginModal(false);
       }}
     >
-      <div className="relative w-full max-w-[396px] rounded-xl border border-[#e5e5df] bg-white px-7 pt-8 pb-6 shadow-[0_24px_60px_rgba(17,22,20,0.18)]">
+      <div className="relative w-full max-w-[400px] rounded-2xl bg-white px-7 pt-7 pb-6 shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
         {!isLocked && (
           <button
             type="button"
             onClick={() => setShowLoginModal(false)}
             aria-label="Tutup dialog login"
-            className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-md text-[#7c8580] transition hover:bg-[#f3f3ee] hover:text-[#141816] cursor-pointer"
+            className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
         )}
 
         <div className="mb-6 flex items-center gap-3.5">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#e5e5df] bg-[#14533c]">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#2eb86b] shadow-[0_6px_16px_rgba(46,184,107,0.28)]">
             {!logoErr ? (
               <img
                 src={DOONA_LOGO_URL}
@@ -75,8 +75,8 @@ export const LoginModal: React.FC = () => {
             )}
           </div>
           <div>
-            <h2 className="font-display text-lg font-semibold text-[#141816]">Doona Golf</h2>
-            <p className="text-xs text-[#565e59]">
+            <h2 className="font-display text-lg font-bold text-[#13222b]">Doona Golf</h2>
+            <p className="text-xs text-[#64748b]">
               {apiUrl ? 'Masuk ke Database Google Sheets' : 'Sistem Operasional & Stok (Mode Lokal)'}
             </p>
           </div>
@@ -84,7 +84,7 @@ export const LoginModal: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="text-left" autoComplete="off">
           <div className="mb-3.5">
-            <label htmlFor="dg-login-user" className="mb-1.5 block text-xs font-medium text-[#141816]">
+            <label htmlFor="dg-login-user" className="mb-1.5 block text-xs font-semibold text-[#13222b]">
               Username
             </label>
             <input
@@ -95,12 +95,12 @@ export const LoginModal: React.FC = () => {
               placeholder="Masukkan username"
               autoComplete="username"
               required
-              className="h-10 w-full rounded-lg border border-[#e5e5df] bg-[#fafaf8] px-3 text-sm text-[#141816] outline-none transition focus:border-[#14533c] focus:bg-white focus:ring-2 focus:ring-[#14533c]/15"
+              className="h-10 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3.5 text-sm text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
             />
           </div>
 
           <div className="mb-3.5">
-            <label htmlFor="dg-login-pwd" className="mb-1.5 block text-xs font-medium text-[#141816]">
+            <label htmlFor="dg-login-pwd" className="mb-1.5 block text-xs font-semibold text-[#13222b]">
               Password
             </label>
             <div className="relative flex items-center">
@@ -112,14 +112,14 @@ export const LoginModal: React.FC = () => {
                 placeholder="Masukkan password"
                 autoComplete="current-password"
                 required
-                className="h-10 w-full rounded-lg border border-[#e5e5df] bg-[#fafaf8] pr-10 pl-3 text-sm text-[#141816] outline-none transition focus:border-[#14533c] focus:bg-white focus:ring-2 focus:ring-[#14533c]/15"
+                className="h-10 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] pr-10 pl-3.5 text-sm text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
               />
               <button
                 type="button"
                 tabIndex={-1}
                 onClick={() => setShowPwd((v) => !v)}
                 title={showPwd ? 'Sembunyikan Password' : 'Lihat Password'}
-                className="absolute right-1.5 flex h-7 w-7 items-center justify-center rounded text-[#7c8580] hover:text-[#141816] cursor-pointer"
+                className="absolute right-2 flex h-7 w-7 items-center justify-center rounded-lg text-[#64748b] hover:bg-[#edf2f0] hover:text-[#13222b] cursor-pointer"
               >
                 {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -127,7 +127,7 @@ export const LoginModal: React.FC = () => {
           </div>
 
           {error && (
-            <div className="mb-3.5 flex items-start gap-2 rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs text-[#b91c1c]">
+            <div className="mb-3.5 flex items-start gap-2 rounded-xl bg-[#fee2e2] px-3.5 py-2.5 text-xs font-medium text-[#b91c1c]">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>{error}</span>
             </div>
@@ -142,7 +142,7 @@ export const LoginModal: React.FC = () => {
                   setError('');
                   setConnError(false);
                 }}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-[#14533c] hover:underline cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#15803d] hover:underline cursor-pointer"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Reset URL koneksi ke bawaan
@@ -150,12 +150,12 @@ export const LoginModal: React.FC = () => {
             </div>
           )}
 
-          <label className="mb-5 flex items-center gap-2 text-xs text-[#565e59] cursor-pointer select-none">
+          <label className="mb-5 flex items-center gap-2 text-xs text-[#475569] cursor-pointer select-none">
             <input
               type="checkbox"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
-              className="h-3.5 w-3.5 rounded accent-[#14533c]"
+              className="h-3.5 w-3.5 rounded accent-[#2eb86b]"
             />
             <span>Ingat saya di perangkat ini</span>
           </label>
@@ -163,17 +163,17 @@ export const LoginModal: React.FC = () => {
           <button
             type="submit"
             disabled={submitting}
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#14533c] text-sm font-medium text-white transition hover:bg-[#0f3f2d] disabled:opacity-60 cursor-pointer"
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#2eb86b] text-sm font-semibold text-white shadow-[0_6px_16px_rgba(46,184,107,0.28)] transition hover:bg-[#259f5b] disabled:opacity-60 cursor-pointer"
           >
             <span>{submitting ? 'Memverifikasi…' : 'Masuk ke Sistem'}</span>
             <ArrowRight className="h-4 w-4" />
           </button>
 
-          <div className="mt-4 flex items-center justify-between gap-2 border-t border-[#efefea] pt-3.5">
+          <div className="mt-4 flex items-center justify-between gap-2 border-t border-[#edf2f0] pt-3.5">
             <button
               type="button"
               onClick={enterLocalMode}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#565e59] hover:text-[#141816] cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#64748b] hover:text-[#13222b] cursor-pointer"
             >
               <WifiOff className="h-3.5 w-3.5" />
               Lanjut Mode Lokal
@@ -184,7 +184,7 @@ export const LoginModal: React.FC = () => {
                 enterLocalMode();
                 navigateTo('db');
               }}
-              className="text-xs font-medium text-[#14533c] hover:underline cursor-pointer"
+              className="text-xs font-semibold text-[#15803d] hover:underline cursor-pointer"
             >
               Atur Koneksi Sheets
             </button>

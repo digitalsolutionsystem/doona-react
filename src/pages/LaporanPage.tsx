@@ -386,7 +386,7 @@ export const LaporanPage: React.FC = () => {
   const charCount = currentReportText.length;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-white">
+    <div className="dg-page print:bg-white">
       <input
         ref={fileInputRef}
         type="file"
@@ -395,18 +395,19 @@ export const LaporanPage: React.FC = () => {
         onChange={handleSelectRestoreFile}
       />
 
-      {/* Panel Header */}
-      <header className="no-print flex flex-wrap items-center justify-between gap-3 border-b border-[#e5e5df] px-5 py-3.5 md:px-6">
+      {/* Sticky Floating Top Bar */}
+      <div className="dg-sticky-header no-print px-4 pt-3 pb-1 md:px-6">
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] md:px-5">
         <div>
-          <h1 className="font-display text-lg font-semibold text-[#141816]">
+          <h1 className="font-display text-base font-bold text-[#13222b]">
             Laporan &amp; Ekspor
           </h1>
-          <p className="text-xs text-[#7c8580]">
+          <p className="text-[11.5px] text-[#64748b]">
             Sumber terpadu dari Input Harian, Tabel Bulanan, OMSET, dan Absensi &amp; Gaji
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-0.5 rounded-lg border border-[#e5e5df] bg-[#f7f7f4] p-0.5">
+        <div className="flex flex-wrap items-center gap-1 rounded-xl bg-[#f3f7f5] p-1">
           {(
             [
               { id: 'preview', label: 'Teks Laporan', icon: FileText },
@@ -422,32 +423,33 @@ export const LaporanPage: React.FC = () => {
                 key={t.id}
                 type="button"
                 onClick={() => setSubTab(t.id)}
-                className={`flex h-7.5 items-center gap-1.5 rounded-md px-3 text-xs font-medium whitespace-nowrap transition cursor-pointer ${
+                className={`flex h-7 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                   active
-                    ? 'bg-[#14533c] text-white'
-                    : 'text-[#565e59] hover:bg-white hover:text-[#141816]'
+                    ? 'bg-[#2eb86b] text-white shadow-xs'
+                    : 'text-[#64748b] hover:text-[#13222b]'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
                 <span>{t.label}</span>
                 {t.id === 'edit' && isCustomEdited && (
-                  <span className={active ? 'text-[#fde68a]' : 'text-[#b45309]'}>·</span>
+                  <span className={active ? 'text-[#fef08a]' : 'text-[#b45309]'}>·</span>
                 )}
               </button>
             );
           })}
         </div>
-      </header>
+        </header>
+      </div>
 
-      {/* Toast / Feedback Banner */}
+      {/* Floating Toast / Feedback Banner */}
       {toast && (
         <div
-          className={`no-print flex items-center justify-between gap-2 border-b px-5 py-2 text-xs font-medium md:px-6 ${
+          className={`no-print mx-4 mt-3 flex shrink-0 items-center justify-between gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold shadow-sm md:mx-6 ${
             toast.type === 'success'
-              ? 'border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]'
+              ? 'bg-[#2eb86b] text-white'
               : toast.type === 'error'
-                ? 'border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]'
-                : 'border-[#e5e5df] bg-[#fafaf8] text-[#141816]'
+                ? 'bg-[#ef4444] text-white'
+                : 'bg-white text-[#13222b]'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -456,14 +458,14 @@ export const LaporanPage: React.FC = () => {
             ) : toast.type === 'error' ? (
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
             ) : (
-              <Info className="h-3.5 w-3.5 shrink-0" />
+              <Info className="h-3.5 w-3.5 shrink-0 text-[#2eb86b]" />
             )}
             <span>{toast.message}</span>
           </div>
           <button
             type="button"
             onClick={() => setToast(null)}
-            className="rounded p-0.5 hover:bg-black/5 cursor-pointer"
+            className="rounded-lg p-0.5 opacity-80 transition hover:opacity-100 cursor-pointer"
             aria-label="Tutup notifikasi"
           >
             <X className="h-3.5 w-3.5" />
@@ -472,31 +474,31 @@ export const LaporanPage: React.FC = () => {
       )}
 
       {/* Main Content Area */}
-      <div className="dg-scroll flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4 md:px-6">
+      <div className="dg-scroll flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-3 md:px-6 md:py-4 print:overflow-visible print:p-0">
         {/* TAB 1: PRATINJAU */}
         {subTab === 'preview' && (
-          <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] md:p-5 print:rounded-none print:bg-white print:p-0 print:shadow-none">
             <div className="no-print flex flex-wrap items-center justify-between gap-2.5">
               <div className="flex flex-wrap items-center gap-2">
                 {isMonthScoped ? (
                   <>
-                    <div className="inline-flex items-center rounded-lg border border-[#e5e5df] bg-[#fafaf8] p-0.5">
+                    <div className="inline-flex items-center rounded-xl bg-[#f3f7f5] p-0.5">
                       <button
                         type="button"
                         onClick={() => moveMonth(-1)}
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] hover:bg-white hover:text-[#141816] cursor-pointer"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] hover:bg-white hover:text-[#13222b] cursor-pointer"
                         title="Bulan sebelumnya"
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </button>
-                      <div className="flex h-7 items-center gap-1.5 px-2.5 text-xs font-medium text-[#141816]">
-                        <Calendar className="h-3.5 w-3.5 text-[#14533c]" />
+                      <div className="flex h-7 items-center gap-1.5 px-2.5 text-xs font-semibold text-[#13222b]">
+                        <Calendar className="h-3.5 w-3.5 text-[#2eb86b]" />
                         <span>{monthLabel}</span>
                       </div>
                       <button
                         type="button"
                         onClick={() => moveMonth(1)}
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] hover:bg-white hover:text-[#141816] cursor-pointer"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] hover:bg-white hover:text-[#13222b] cursor-pointer"
                         title="Bulan berikutnya"
                       >
                         <ChevronRight className="h-4 w-4" />
@@ -505,18 +507,18 @@ export const LaporanPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={goToday}
-                      className="h-8 rounded-md border border-[#e5e5df] bg-white px-2.5 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
+                      className="h-8 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
                     >
                       Bulan Ini
                     </button>
                   </>
                 ) : (
                   <>
-                    <div className="inline-flex items-center rounded-lg border border-[#e5e5df] bg-[#fafaf8] p-0.5">
+                    <div className="inline-flex items-center rounded-xl bg-[#f3f7f5] p-0.5">
                       <button
                         type="button"
                         onClick={() => moveDay(-1)}
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] hover:bg-white hover:text-[#141816] cursor-pointer"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] hover:bg-white hover:text-[#13222b] cursor-pointer"
                         title="Hari sebelumnya"
                       >
                         <ChevronLeft className="h-4 w-4" />
@@ -527,12 +529,12 @@ export const LaporanPage: React.FC = () => {
                         onChange={(e) => {
                           if (e.target.value) selectDateStr(e.target.value);
                         }}
-                        className="font-mono-num h-7 bg-transparent px-2 text-xs font-medium text-[#141816] outline-none"
+                        className="font-mono-num h-7 bg-transparent px-2 text-xs font-semibold text-[#13222b] outline-none"
                       />
                       <button
                         type="button"
                         onClick={() => moveDay(1)}
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] hover:bg-white hover:text-[#141816] cursor-pointer"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] hover:bg-white hover:text-[#13222b] cursor-pointer"
                         title="Hari berikutnya"
                       >
                         <ChevronRight className="h-4 w-4" />
@@ -541,12 +543,29 @@ export const LaporanPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={goToday}
-                      className="h-8 rounded-md border border-[#e5e5df] bg-white px-2.5 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
+                      className="h-8 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
                     >
                       Hari ini
                     </button>
-                    <span className="text-xs font-medium text-[#141816]">{fullDateLabel}</span>
                   </>
+                )}
+
+                <select
+                  value={preset}
+                  onChange={(e) => setPreset(e.target.value as ReportPresetMode)}
+                  aria-label="Pilih jenis laporan"
+                  title={activePresetMeta.shortDesc}
+                  className="h-8 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] outline-none transition hover:bg-[#e7efec] focus:ring-2 focus:ring-[#2eb86b] cursor-pointer"
+                >
+                  {PRESET_OPTIONS.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+
+                {!isMonthScoped && (
+                  <span className="text-xs font-semibold text-[#13222b]">{fullDateLabel}</span>
                 )}
               </div>
 
@@ -555,7 +574,7 @@ export const LaporanPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleResetToOriginal}
-                    className="flex h-8 items-center gap-1.5 rounded-md border border-[#f3d692] bg-[#fffcf2] px-2.5 text-xs font-medium text-[#92400e] hover:bg-[#fef6dc] cursor-pointer"
+                    className="flex h-8 items-center gap-1.5 rounded-xl bg-[#f59e0b] px-3 text-xs font-semibold text-white transition hover:bg-[#d97706] cursor-pointer"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
                     Kembalikan Teks Asli
@@ -564,7 +583,7 @@ export const LaporanPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSubTab('edit')}
-                  className="flex h-8 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
+                  className="flex h-8 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
                 >
                   <Pencil className="h-3.5 w-3.5" />
                   Edit Teks Ini
@@ -572,70 +591,35 @@ export const LaporanPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Report Mode Selector Strip */}
-            <div className="no-print grid grid-cols-2 gap-2 lg:grid-cols-4">
-              {PRESET_OPTIONS.map((opt) => {
-                const selected = preset === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setPreset(opt.id)}
-                    className={`flex flex-col items-start rounded-lg border px-3 py-2 text-left transition cursor-pointer ${
-                      selected
-                        ? 'border-[#14533c] bg-[#f4faf7]'
-                        : 'border-[#e5e5df] bg-white hover:border-[#c8c8be] hover:bg-[#fafaf8]'
-                    }`}
-                  >
-                    <div className="flex w-full items-center justify-between gap-2">
-                      <span
-                        className={`text-xs font-semibold ${
-                          selected ? 'text-[#14533c]' : 'text-[#141816]'
-                        }`}
-                      >
-                        {opt.label}
-                      </span>
-                      <span className="text-[11px] text-[#7c8580]">
-                        {opt.scope === 'day' ? 'Harian' : 'Bulanan'}
-                      </span>
-                    </div>
-                    <span className="mt-0.5 line-clamp-1 text-[11px] text-[#7c8580]">
-                      {opt.shortDesc}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
             {/* Compact Live Metadata Strip */}
-            <div className="no-print flex flex-wrap items-center justify-between gap-2 border-y border-[#efefea] bg-[#fafaf8] px-3 py-2 text-xs">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[#565e59]">
+            <div className="no-print flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f7faf9] px-3.5 py-2 text-xs">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[#64748b]">
                 <span>
                   Item dilaporkan{' '}
-                  <strong className="font-mono-num text-[#141816]">
+                  <strong className="font-mono-num text-[#13222b]">
                     {stats.selectedItemsCount}/{stats.activeItemsCount}
                   </strong>
                 </span>
                 {!isMonthScoped && (
                   <>
-                    <span className="text-[#d4d4cc]">·</span>
+                    <span className="text-[#cbd5e1]">·</span>
                     <span>
                       Barang datang tgl {day}{' '}
-                      <strong className="font-mono-num text-[#14533c]">
+                      <strong className="font-mono-num text-[#15803d]">
                         {stats.datangCount} item
                       </strong>
                     </span>
-                    <span className="text-[#d4d4cc]">·</span>
+                    <span className="text-[#cbd5e1]">·</span>
                     <span>
                       Closing terisi{' '}
-                      <strong className="font-mono-num text-[#141816]">
+                      <strong className="font-mono-num text-[#13222b]">
                         {stats.closingFilledCount}/{stats.activeItemsCount}
                       </strong>
                     </span>
                     {stats.negativeUsageCount > 0 && (
                       <>
-                        <span className="text-[#d4d4cc]">·</span>
-                        <span className="font-medium text-[#b91c1c]">
+                        <span className="text-[#cbd5e1]">·</span>
+                        <span className="font-semibold text-[#dc2626]">
                           {stats.negativeUsageCount} pemakaian negatif
                         </span>
                       </>
@@ -643,11 +627,11 @@ export const LaporanPage: React.FC = () => {
                   </>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-[11.5px] text-[#7c8580]">
-                <span className={isCustomEdited ? 'font-medium text-[#b45309]' : 'text-[#15803d]'}>
+              <div className="flex items-center gap-2 text-[11.5px] text-[#64748b]">
+                <span className={isCustomEdited ? 'font-semibold text-[#b45309]' : 'font-semibold text-[#15803d]'}>
                   {isCustomEdited ? 'Diedit manual' : 'Otomatis dari data asli'}
                 </span>
-                <span className="text-[#d4d4cc]">·</span>
+                <span className="text-[#cbd5e1]">·</span>
                 <span className="font-mono-num">
                   {lineCount} baris · {charCount} kar
                 </span>
@@ -655,18 +639,18 @@ export const LaporanPage: React.FC = () => {
             </div>
 
             {/* Printable Header */}
-            <div className="hidden print:mb-4 print:block print:border-b print:border-[#d4d4cc] print:pb-3">
-              <div className="font-display text-lg font-bold text-[#141816]">
+            <div className="hidden print:mb-4 print:block print:border-b print:border-[#cbd5e1] print:pb-3">
+              <div className="font-display text-lg font-bold text-[#13222b]">
                 DOONA GOLF — {activePresetMeta.label}
               </div>
-              <div className="text-xs text-[#565e59]">
+              <div className="text-xs text-[#475569]">
                 Periode: {isMonthScoped ? monthLabel : fullDateLabel} · Dicetak pada{' '}
                 {new Date().toLocaleString('id-ID')}
               </div>
             </div>
 
             {/* Preview Box */}
-            <pre className="dg-scroll dg-print-report font-mono-num min-h-0 flex-1 overflow-y-auto rounded-lg border border-[#e5e5df] bg-[#fafaf8] p-4 text-[13px] leading-relaxed whitespace-pre-wrap text-[#141816] print:overflow-visible print:border-none print:bg-white print:p-0">
+            <pre className="dg-scroll dg-print-report font-mono-num min-h-0 flex-1 overflow-y-auto rounded-xl border border-[#edf2f0] bg-[#f7faf9] p-4 text-[13px] leading-relaxed whitespace-pre-wrap text-[#13222b] print:overflow-visible print:border-none print:bg-white print:p-0">
               {currentReportText}
             </pre>
 
@@ -675,7 +659,7 @@ export const LaporanPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCopyWhatsApp}
-                className="flex h-8.5 items-center gap-1.5 rounded-md bg-[#14533c] px-3.5 text-xs font-medium text-white transition hover:bg-[#0f3f2d] cursor-pointer"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
               >
                 <Copy className="h-3.5 w-3.5" />
                 Salin WhatsApp
@@ -685,36 +669,36 @@ export const LaporanPage: React.FC = () => {
                 type="button"
                 onClick={() => setShowTgModal(true)}
                 disabled={tgSending}
-                className="flex h-8.5 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] transition hover:bg-[#f3f3ee] disabled:opacity-60 cursor-pointer"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] disabled:opacity-60 cursor-pointer"
               >
-                <Send className="h-3.5 w-3.5 text-[#14533c]" />
+                <Send className="h-3.5 w-3.5 text-[#2eb86b]" />
                 {tgSending ? 'Mengirim…' : 'Kirim Telegram'}
               </button>
 
               <button
                 type="button"
                 onClick={handlePrintPdf}
-                className="flex h-8.5 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
               >
-                <Printer className="h-3.5 w-3.5 text-[#565e59]" />
+                <Printer className="h-3.5 w-3.5 text-[#475569]" />
                 Cetak / PDF
               </button>
 
               <button
                 type="button"
                 onClick={handleExportDailyUsageCsv}
-                className="flex h-8.5 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
               >
-                <FileSpreadsheet className="h-3.5 w-3.5 text-[#14533c]" />
+                <FileSpreadsheet className="h-3.5 w-3.5 text-[#2eb86b]" />
                 Ekspor CSV
               </button>
 
               <button
                 type="button"
                 onClick={handleDownloadBackupJson}
-                className="flex h-8.5 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
               >
-                <Download className="h-3.5 w-3.5 text-[#565e59]" />
+                <Download className="h-3.5 w-3.5 text-[#475569]" />
                 Backup JSON
               </button>
 
@@ -722,7 +706,7 @@ export const LaporanPage: React.FC = () => {
                 type="button"
                 disabled={isViewer}
                 onClick={() => fileInputRef.current?.click()}
-                className="flex h-8.5 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
               >
                 <Upload className="h-3.5 w-3.5 text-[#b45309]" />
                 Restore Backup
@@ -733,14 +717,14 @@ export const LaporanPage: React.FC = () => {
 
         {/* TAB 2: EDIT TEKS */}
         {subTab === 'edit' && (
-          <div className="no-print flex min-h-0 flex-1 flex-col gap-3">
+          <div className="no-print flex min-h-0 flex-1 flex-col gap-3 rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] md:p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h2 className="font-display text-[15px] font-semibold text-[#141816]">
+                <h2 className="font-display text-[15px] font-bold text-[#13222b]">
                   Edit Teks Laporan — {activePresetMeta.label} (
                   {isMonthScoped ? monthLabel : fullDateLabel})
                 </h2>
-                <p className="text-xs text-[#7c8580]">
+                <p className="text-xs text-[#64748b]">
                   Sesuaikan teks atau catatan khusus sebelum disalin. Tidak mengubah angka pada
                   database asli.
                 </p>
@@ -750,7 +734,7 @@ export const LaporanPage: React.FC = () => {
                   type="button"
                   onClick={handleResetToOriginal}
                   disabled={!isCustomEdited}
-                  className="flex h-8 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] disabled:opacity-50 cursor-pointer"
+                  className="flex h-8.5 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] disabled:opacity-50 cursor-pointer"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                   Kembalikan ke Teks Asli
@@ -758,7 +742,7 @@ export const LaporanPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSubTab('preview')}
-                  className="flex h-8 items-center gap-1.5 rounded-md bg-[#14533c] px-3 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                  className="flex h-8.5 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-3.5 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
                 >
                   Selesai &amp; Pratinjau →
                 </button>
@@ -769,11 +753,11 @@ export const LaporanPage: React.FC = () => {
               value={currentReportText}
               onChange={(e) => handleManualTextChange(e.target.value)}
               spellCheck={false}
-              className="dg-scroll font-mono-num min-h-0 flex-1 resize-none rounded-lg border border-[#e5e5df] bg-white p-4 text-[13px] leading-relaxed text-[#141816] outline-none focus:border-[#14533c] focus:ring-2 focus:ring-[#14533c]/15"
+              className="dg-scroll font-mono-num min-h-0 flex-1 resize-none rounded-xl border border-[#dce6e2] bg-[#f7faf9] p-4 text-[13px] leading-relaxed text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
             />
 
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs text-[#7c8580]">
+              <span className="text-xs text-[#64748b]">
                 {isCustomEdited
                   ? 'Perubahan manual aktif — teks ini yang akan disalin/dikirim.'
                   : 'Menampilkan teks otomatis asli dari sistem.'}
@@ -782,7 +766,7 @@ export const LaporanPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleCopyWhatsApp}
-                  className="flex h-8.5 items-center gap-1.5 rounded-md bg-[#14533c] px-3.5 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                  className="flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
                 >
                   <Copy className="h-3.5 w-3.5" />
                   Salin WhatsApp Sekarang
@@ -791,9 +775,9 @@ export const LaporanPage: React.FC = () => {
                   type="button"
                   onClick={() => setShowTgModal(true)}
                   disabled={tgSending}
-                  className="flex h-8.5 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] disabled:opacity-60 cursor-pointer"
+                  className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] disabled:opacity-60 cursor-pointer"
                 >
-                  <Send className="h-3.5 w-3.5 text-[#14533c]" />
+                  <Send className="h-3.5 w-3.5 text-[#2eb86b]" />
                   Kirim Telegram
                 </button>
               </div>
@@ -803,13 +787,13 @@ export const LaporanPage: React.FC = () => {
 
         {/* TAB 3: ATUR FORMAT ITEM */}
         {subTab === 'setting' && (
-          <div className="no-print flex min-h-0 flex-1 flex-col gap-3">
+          <div className="no-print flex min-h-0 flex-1 flex-col gap-3 rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] md:p-5">
             <div className="flex flex-wrap items-center justify-between gap-2.5">
               <div>
-                <h2 className="font-display text-[15px] font-semibold text-[#141816]">
+                <h2 className="font-display text-[15px] font-bold text-[#13222b]">
                   Atur Isi Laporan per Item
                 </h2>
-                <p className="text-xs text-[#7c8580]">
+                <p className="text-xs text-[#64748b]">
                   Pilih item dan kolom (Sisa Stok / Pemakaian) yang dimasukkan ke laporan. Item
                   dengan kedua centang kosong akan otomatis dilewati.
                 </p>
@@ -822,9 +806,9 @@ export const LaporanPage: React.FC = () => {
                     setAllReportItemConfig('both', true);
                     showNotice('success', 'Semua item dicentang untuk Sisa Stok & Pemakaian.');
                   }}
-                  className="flex h-8 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-2.5 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] disabled:opacity-50 cursor-pointer"
+                  className="flex h-8.5 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] disabled:opacity-50 cursor-pointer"
                 >
-                  <CheckSquare className="h-3.5 w-3.5 text-[#14533c]" />
+                  <CheckSquare className="h-3.5 w-3.5 text-[#2eb86b]" />
                   Centang Semua
                 </button>
                 <button
@@ -834,98 +818,102 @@ export const LaporanPage: React.FC = () => {
                     setAllReportItemConfig('both', false);
                     showNotice('info', 'Semua centang item pada laporan telah dihapus.');
                   }}
-                  className="flex h-8 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-2.5 text-xs font-medium text-[#565e59] hover:bg-[#f3f3ee] disabled:opacity-50 cursor-pointer"
+                  className="flex h-8.5 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#475569] transition hover:bg-[#e1ebe7] disabled:opacity-50 cursor-pointer"
                 >
-                  <Square className="h-3.5 w-3.5 text-[#9aa39e]" />
+                  <Square className="h-3.5 w-3.5 text-[#64748b]" />
                   Hapus Semua Centang
                 </button>
                 <button
                   type="button"
                   onClick={() => setSubTab('preview')}
-                  className="flex h-8 items-center gap-1.5 rounded-md bg-[#14533c] px-3 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                  className="flex h-8.5 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-3.5 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
                 >
                   Lihat Teks Laporan →
                 </button>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#bbf7d0] bg-[#f4faf7] px-3.5 py-2.5 text-xs text-[#14533c]">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#e6f7ee] px-3.5 py-2.5 text-xs text-[#15803d]">
               <div>
                 <strong>Barang Datang Otomatis:</strong> Item dengan barang datang (&gt; 0) pada
                 tanggal terpilih selalu disertakan di bagian atas laporan.
               </div>
-              <span className="font-mono-num font-semibold">
+              <span className="font-mono-num font-bold">
                 Sisa {stats.sisaCheckedCount} · Pakai {stats.pakaiCheckedCount} /{' '}
                 {stats.activeItemsCount} item
               </span>
             </div>
 
             <div className="relative max-w-xs">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-[#9aa39e]" />
+              <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-[#64748b]" />
               <input
                 type="text"
                 value={settingSearch}
                 onChange={(e) => setSettingSearch(e.target.value)}
                 placeholder="Cari item atau kategori…"
-                className="h-8 w-full rounded-md border border-[#e5e5df] bg-white pr-8 pl-8 text-xs text-[#141816] outline-none focus:border-[#14533c]"
+                className="h-8.5 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] pr-8 pl-8.5 text-xs text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
               />
               {settingSearch && (
                 <button
                   type="button"
                   onClick={() => setSettingSearch('')}
-                  className="absolute top-1/2 right-2 -translate-y-1/2 text-[#9aa39e] hover:text-[#141816] cursor-pointer"
+                  className="absolute top-1/2 right-2.5 -translate-y-1/2 text-[#64748b] hover:text-[#13222b] cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
 
-            <div className="dg-scroll min-h-0 flex-1 overflow-auto rounded-lg border border-[#e5e5df]">
+            <div className="dg-scroll min-h-0 flex-1 overflow-auto rounded-xl border border-[#edf2f0]">
               <table className="w-full border-collapse text-left text-xs">
-                <thead className="sticky top-0 z-10 border-b border-[#e5e5df] bg-[#fafaf8] text-xs font-medium text-[#565e59]">
+                <thead className="sticky top-0 z-10 border-b border-[#edf2f0] bg-[#f7faf9] text-[11px] font-bold uppercase tracking-[0.04em] text-[#64748b]">
                   <tr>
                     <th className="px-4 py-2.5">Nama Item</th>
                     <th className="px-3 py-2.5">Kategori</th>
                     <th className="w-24 px-3 py-2.5">Satuan</th>
-                    <th className="w-36 px-3 py-2.5 text-center">
-                      <div>Laporkan Sisa Stok</div>
-                      <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[11px] font-normal">
+                    <th className="w-36 px-3 py-2.5 text-center normal-case tracking-normal">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.04em]">
+                        Laporkan Sisa Stok
+                      </div>
+                      <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[11px] font-semibold">
                         <button
                           type="button"
                           disabled={isViewer}
                           onClick={() => setAllReportItemConfig('sisa', true)}
-                          className="text-[#14533c] hover:underline disabled:opacity-50 cursor-pointer"
+                          className="text-[#15803d] hover:underline disabled:opacity-50 cursor-pointer"
                         >
                           Semua
                         </button>
-                        <span className="text-[#d4d4cc]">·</span>
+                        <span className="text-[#cbd5e1]">·</span>
                         <button
                           type="button"
                           disabled={isViewer}
                           onClick={() => setAllReportItemConfig('sisa', false)}
-                          className="text-[#7c8580] hover:underline disabled:opacity-50 cursor-pointer"
+                          className="text-[#64748b] hover:underline disabled:opacity-50 cursor-pointer"
                         >
                           Kosong
                         </button>
                       </div>
                     </th>
-                    <th className="w-36 px-3 py-2.5 text-center">
-                      <div>Laporkan Pemakaian</div>
-                      <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[11px] font-normal">
+                    <th className="w-36 px-3 py-2.5 text-center normal-case tracking-normal">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.04em]">
+                        Laporkan Pemakaian
+                      </div>
+                      <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[11px] font-semibold">
                         <button
                           type="button"
                           disabled={isViewer}
                           onClick={() => setAllReportItemConfig('pakai', true)}
-                          className="text-[#14533c] hover:underline disabled:opacity-50 cursor-pointer"
+                          className="text-[#15803d] hover:underline disabled:opacity-50 cursor-pointer"
                         >
                           Semua
                         </button>
-                        <span className="text-[#d4d4cc]">·</span>
+                        <span className="text-[#cbd5e1]">·</span>
                         <button
                           type="button"
                           disabled={isViewer}
                           onClick={() => setAllReportItemConfig('pakai', false)}
-                          className="text-[#7c8580] hover:underline disabled:opacity-50 cursor-pointer"
+                          className="text-[#64748b] hover:underline disabled:opacity-50 cursor-pointer"
                         >
                           Kosong
                         </button>
@@ -933,22 +921,22 @@ export const LaporanPage: React.FC = () => {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#efefea]">
+                <tbody className="divide-y divide-[#edf2f0]">
                   {filteredGroupedItems.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-10 text-center text-[#7c8580]">
+                      <td colSpan={5} className="px-4 py-10 text-center text-[#64748b]">
                         Tidak ada item aktif yang cocok dengan pencarian.
                       </td>
                     </tr>
                   ) : (
                     filteredGroupedItems.map(([kat, list]) => (
                       <React.Fragment key={kat}>
-                        <tr className="bg-[#f4f4ef]">
+                        <tr className="bg-[#f3f7f5]/80">
                           <td
                             colSpan={5}
-                            className="px-4 py-1.5 text-xs font-semibold text-[#141816]"
+                            className="px-4 py-1.5 text-xs font-bold text-[#13222b]"
                           >
-                            {kat} <span className="font-normal text-[#7c8580]">· {list.length}</span>
+                            {kat} <span className="font-medium text-[#64748b]">· {list.length}</span>
                           </td>
                         </tr>
                         {list.map((item) => {
@@ -957,17 +945,17 @@ export const LaporanPage: React.FC = () => {
                           return (
                             <tr
                               key={item.id}
-                              className={`transition-colors hover:bg-[#fafaf8] ${
-                                hiddenInReport ? 'bg-[#fafaf8]/60 text-[#9aa39e]' : ''
+                              className={`transition-colors hover:bg-[#f7faf9] ${
+                                hiddenInReport ? 'bg-[#f8fafc] text-[#94a3b8]' : ''
                               }`}
                             >
-                              <td className="px-4 py-2 font-medium text-[#141816]">
-                                <span className={hiddenInReport ? 'text-[#9aa39e] line-through' : ''}>
+                              <td className="px-4 py-2 font-semibold text-[#13222b]">
+                                <span className={hiddenInReport ? 'text-[#94a3b8] line-through' : ''}>
                                   {item.nama}
                                 </span>
                               </td>
-                              <td className="px-3 py-2 text-[#565e59]">{item.kat}</td>
-                              <td className="px-3 py-2 font-mono-num text-[#565e59]">
+                              <td className="px-3 py-2 text-[#475569]">{item.kat}</td>
+                              <td className="px-3 py-2 font-mono-num text-[#475569]">
                                 {item.sat || 'pcs'}
                               </td>
                               <td className="px-3 py-2 text-center">
@@ -978,7 +966,7 @@ export const LaporanPage: React.FC = () => {
                                   onChange={(e) =>
                                     setReportItemConfig(item.id, 'sisa', e.target.checked)
                                   }
-                                  className="h-4 w-4 cursor-pointer accent-[#14533c] disabled:cursor-not-allowed"
+                                  className="h-4 w-4 cursor-pointer accent-[#2eb86b] disabled:cursor-not-allowed"
                                   aria-label={`Laporkan sisa stok ${item.nama}`}
                                 />
                               </td>
@@ -990,7 +978,7 @@ export const LaporanPage: React.FC = () => {
                                   onChange={(e) =>
                                     setReportItemConfig(item.id, 'pakai', e.target.checked)
                                   }
-                                  className="h-4 w-4 cursor-pointer accent-[#14533c] disabled:cursor-not-allowed"
+                                  className="h-4 w-4 cursor-pointer accent-[#2eb86b] disabled:cursor-not-allowed"
                                   aria-label={`Laporkan pemakaian ${item.nama}`}
                                 />
                               </td>
@@ -1008,32 +996,32 @@ export const LaporanPage: React.FC = () => {
 
         {/* TAB 4: EKSPOR CSV, BACKUP & RESTORE */}
         {subTab === 'export' && (
-          <div className="dg-scroll no-print min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#efefea] pb-3.5">
+          <div className="dg-scroll no-print min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-white px-5 py-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
               <div>
-                <h2 className="font-display text-[15px] font-semibold text-[#141816]">
+                <h2 className="font-display text-[15px] font-bold text-[#13222b]">
                   Ekspor Data CSV per Bulan
                 </h2>
-                <p className="text-xs text-[#7c8580]">
+                <p className="text-xs text-[#64748b]">
                   Semua file CSV dibangkitkan langsung dari transaksi asli bulan terpilih (tanpa
                   mengubah data kosong menjadi 0).
                 </p>
               </div>
-              <div className="inline-flex items-center rounded-lg border border-[#e5e5df] bg-[#fafaf8] p-0.5">
+              <div className="inline-flex items-center rounded-xl bg-[#f3f7f5] p-0.5">
                 <button
                   type="button"
                   onClick={() => moveMonth(-1)}
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] hover:bg-white hover:text-[#141816] cursor-pointer"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] hover:bg-white hover:text-[#13222b] cursor-pointer"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
-                <span className="min-w-[116px] px-2 text-center text-xs font-medium text-[#141816]">
+                <span className="min-w-[116px] px-2 text-center text-xs font-semibold text-[#13222b]">
                   {monthLabel}
                 </span>
                 <button
                   type="button"
                   onClick={() => moveMonth(1)}
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] hover:bg-white hover:text-[#141816] cursor-pointer"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] hover:bg-white hover:text-[#13222b] cursor-pointer"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
@@ -1041,14 +1029,16 @@ export const LaporanPage: React.FC = () => {
             </div>
 
             {/* 4 Multi-module CSV Grid */}
-            <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
-              <div className="flex flex-col justify-between rounded-xl border border-[#e5e5df] bg-white p-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="flex flex-col justify-between rounded-2xl bg-white p-5 shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
                 <div>
-                  <div className="flex items-center gap-2 text-[13px] font-semibold text-[#141816]">
-                    <FileSpreadsheet className="h-4 w-4 text-[#14533c]" />
+                  <div className="flex items-center gap-2.5 text-[13.5px] font-bold text-[#13222b]">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#e6f7ee] text-[#15803d]">
+                      <FileSpreadsheet className="h-4 w-4" />
+                    </span>
                     CSV Pemakaian Harian (Standar)
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-[#565e59]">
+                  <p className="mt-2 text-xs leading-relaxed text-[#64748b]">
                     Matriks Tanggal × Item Aktif untuk seluruh hari di bulan {monthLabel}. Sama
                     persis dengan ekspor CSV aplikasi lama.
                   </p>
@@ -1056,20 +1046,22 @@ export const LaporanPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleExportDailyUsageCsv}
-                  className="mt-3.5 flex h-8 w-fit items-center gap-1.5 rounded-md bg-[#14533c] px-3 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                  className="mt-4 flex h-8.5 w-fit items-center gap-1.5 rounded-xl bg-[#2eb86b] px-3.5 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
                 >
                   <Download className="h-3.5 w-3.5" />
                   Unduh pemakaian-{ym}.csv
                 </button>
               </div>
 
-              <div className="flex flex-col justify-between rounded-xl border border-[#e5e5df] bg-white p-4">
+              <div className="flex flex-col justify-between rounded-2xl bg-white p-5 shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
                 <div>
-                  <div className="flex items-center gap-2 text-[13px] font-semibold text-[#141816]">
-                    <Layers className="h-4 w-4 text-[#14533c]" />
+                  <div className="flex items-center gap-2.5 text-[13.5px] font-bold text-[#13222b]">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#e6f7ee] text-[#15803d]">
+                      <Layers className="h-4 w-4" />
+                    </span>
                     CSV Rekap Stok Bulanan Lengkap
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-[#565e59]">
+                  <p className="mt-2 text-xs leading-relaxed text-[#64748b]">
                     Mencakup Stok Awal, Total Datang, Total Pemakaian, Sisa Akhir, dan rincian per
                     tanggal termasuk item arsip berhistori.
                   </p>
@@ -1077,20 +1069,22 @@ export const LaporanPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleExportMonthlyRecapCsv}
-                  className="mt-3.5 flex h-8 w-fit items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
+                  className="mt-4 flex h-8.5 w-fit items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
                 >
-                  <Download className="h-3.5 w-3.5 text-[#14533c]" />
+                  <Download className="h-3.5 w-3.5 text-[#2eb86b]" />
                   Unduh rekap-stok-{ym}.csv
                 </button>
               </div>
 
-              <div className="flex flex-col justify-between rounded-xl border border-[#e5e5df] bg-white p-4">
+              <div className="flex flex-col justify-between rounded-2xl bg-white p-5 shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
                 <div>
-                  <div className="flex items-center gap-2 text-[13px] font-semibold text-[#141816]">
-                    <FileSpreadsheet className="h-4 w-4 text-[#b45309]" />
+                  <div className="flex items-center gap-2.5 text-[13.5px] font-bold text-[#13222b]">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#fef3c7] text-[#b45309]">
+                      <FileSpreadsheet className="h-4 w-4" />
+                    </span>
                     CSV Laporan OMSET &amp; Pengeluaran
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-[#565e59]">
+                  <p className="mt-2 text-xs leading-relaxed text-[#64748b]">
                     Tunai &amp; QRIS Nota, Real Laci &amp; mBanking, Selisih, Pengeluaran Nota/Besar,
                     Gaji Harian, hingga Tunai Akhir bulan {monthLabel}.
                   </p>
@@ -1098,20 +1092,22 @@ export const LaporanPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleExportOmsetCsv}
-                  className="mt-3.5 flex h-8 w-fit items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
+                  className="mt-4 flex h-8.5 w-fit items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
                 >
-                  <Download className="h-3.5 w-3.5 text-[#14533c]" />
+                  <Download className="h-3.5 w-3.5 text-[#2eb86b]" />
                   Unduh omset-{ym}.csv
                 </button>
               </div>
 
-              <div className="flex flex-col justify-between rounded-xl border border-[#e5e5df] bg-white p-4">
+              <div className="flex flex-col justify-between rounded-2xl bg-white p-5 shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
                 <div>
-                  <div className="flex items-center gap-2 text-[13px] font-semibold text-[#141816]">
-                    <ListChecks className="h-4 w-4 text-[#565e59]" />
+                  <div className="flex items-center gap-2.5 text-[13.5px] font-bold text-[#13222b]">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#f1f5f9] text-[#0d2530]">
+                      <ListChecks className="h-4 w-4" />
+                    </span>
                     CSV Rekap Absensi &amp; Gaji Karyawan
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-[#565e59]">
+                  <p className="mt-2 text-xs leading-relaxed text-[#64748b]">
                     Rekap kehadiran (Hadir/Libur/Izin/Sakit/Alfa), paket lembur, tarif, dan total
                     gaji karyawan bulan {monthLabel}.
                   </p>
@@ -1119,9 +1115,9 @@ export const LaporanPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleExportPayrollCsv}
-                  className="mt-3.5 flex h-8 w-fit items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
+                  className="mt-4 flex h-8.5 w-fit items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
                 >
-                  <Download className="h-3.5 w-3.5 text-[#14533c]" />
+                  <Download className="h-3.5 w-3.5 text-[#2eb86b]" />
                   Unduh absensi-gaji-{ym}.csv
                 </button>
               </div>
@@ -1129,49 +1125,49 @@ export const LaporanPage: React.FC = () => {
 
             {/* Backup & Restore JSON Section */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="rounded-xl border border-[#e5e5df] bg-white p-5">
-                <h3 className="font-display text-[15px] font-semibold text-[#141816]">
+              <div className="rounded-2xl bg-white p-5 shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
+                <h3 className="font-display text-[15px] font-bold text-[#13222b]">
                   Backup Database JSON
                 </h3>
-                <p className="mt-0.5 text-xs text-[#7c8580]">
+                <p className="mt-0.5 text-xs text-[#64748b]">
                   Simpan salinan utuh seluruh modul DOONA GOLF
                 </p>
 
-                <div className="mt-3.5 grid grid-cols-3 gap-x-4 gap-y-2.5 border-y border-[#efefea] py-3 text-xs">
+                <div className="mt-3.5 grid grid-cols-3 gap-x-4 gap-y-2.5 border-y border-[#edf2f0] py-3 text-xs">
                   <div>
-                    <div className="text-[11px] text-[#7c8580]">Master Item</div>
-                    <div className="font-mono-num font-semibold text-[#141816]">
+                    <div className="text-[11px] text-[#64748b]">Master Item</div>
+                    <div className="font-mono-num font-bold text-[#13222b]">
                       {currentDataSummary.totalItems} ({currentDataSummary.activeItems} aktif)
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-[#7c8580]">Bulan Stok</div>
-                    <div className="font-mono-num font-semibold text-[#141816]">
+                    <div className="text-[11px] text-[#64748b]">Bulan Stok</div>
+                    <div className="font-mono-num font-bold text-[#13222b]">
                       {currentDataSummary.stockMonths.length} bulan
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-[#7c8580]">Hari OMSET</div>
-                    <div className="font-mono-num font-semibold text-[#141816]">
+                    <div className="text-[11px] text-[#64748b]">Hari OMSET</div>
+                    <div className="font-mono-num font-bold text-[#13222b]">
                       {currentDataSummary.omsetDaysCount} hari
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-[#7c8580]">Karyawan</div>
-                    <div className="font-mono-num font-semibold text-[#141816]">
+                    <div className="text-[11px] text-[#64748b]">Karyawan</div>
+                    <div className="font-mono-num font-bold text-[#13222b]">
                       {currentDataSummary.employeeCount} (+{currentDataSummary.archivedEmployeeCount}{' '}
                       arsip)
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-[#7c8580]">Bulan Absensi</div>
-                    <div className="font-mono-num font-semibold text-[#141816]">
+                    <div className="text-[11px] text-[#64748b]">Bulan Absensi</div>
+                    <div className="font-mono-num font-bold text-[#13222b]">
                       {currentDataSummary.attendanceMonths.length} bulan
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-[#7c8580]">Satuan</div>
-                    <div className="font-mono-num font-semibold text-[#141816]">
+                    <div className="text-[11px] text-[#64748b]">Satuan</div>
+                    <div className="font-mono-num font-bold text-[#13222b]">
                       {currentDataSummary.satuanCount} satuan
                     </div>
                   </div>
@@ -1180,32 +1176,32 @@ export const LaporanPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleDownloadBackupJson}
-                  className="mt-4 flex h-8.5 items-center gap-1.5 rounded-md bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                  className="mt-4 flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
                 >
                   <Download className="h-3.5 w-3.5" />
                   Unduh Backup JSON Lengkap
                 </button>
               </div>
 
-              <div className="rounded-xl border border-[#e5e5df] bg-white p-5">
-                <h3 className="font-display text-[15px] font-semibold text-[#141816]">
+              <div className="rounded-2xl bg-white p-5 shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
+                <h3 className="font-display text-[15px] font-bold text-[#13222b]">
                   Restore Backup JSON (Tervalidasi)
                 </h3>
-                <p className="mt-0.5 text-xs text-[#7c8580]">
+                <p className="mt-0.5 text-xs text-[#64748b]">
                   Validasi struktur ketat + cadangan otomatis sebelum data diganti
                 </p>
 
-                <ul className="mt-3.5 space-y-1.5 border-y border-[#efefea] py-3 text-xs text-[#565e59]">
+                <ul className="mt-3.5 space-y-1.5 border-y border-[#edf2f0] py-3 text-xs text-[#475569]">
                   <li className="flex items-start gap-2">
-                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#15803d]" />
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#2eb86b]" />
                     Struktur JSON, Master Item, dan periode stok divalidasi sebelum restore.
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#15803d]" />
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#2eb86b]" />
                     File tidak valid ditolak otomatis tanpa menghapus atau mengubah data lama.
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#15803d]" />
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#2eb86b]" />
                     Sistem otomatis membuat cadangan data lama sebelum menimpa database.
                   </li>
                 </ul>
@@ -1215,13 +1211,13 @@ export const LaporanPage: React.FC = () => {
                     type="button"
                     disabled={isViewer}
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex h-8.5 items-center gap-1.5 rounded-md border border-[#f3d692] bg-[#fffcf2] px-4 text-xs font-medium text-[#92400e] hover:bg-[#fef6dc] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                    className="flex h-9 items-center gap-1.5 rounded-xl bg-[#fef3c7] px-4 text-xs font-semibold text-[#b45309] transition hover:bg-[#fde68a] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                   >
                     <Upload className="h-3.5 w-3.5" />
                     Pilih File Backup (.json)
                   </button>
                   {isViewer && (
-                    <span className="text-xs text-[#7c8580]">
+                    <span className="text-xs text-[#64748b]">
                       Restore dinonaktifkan pada mode Viewer.
                     </span>
                   )}
@@ -1230,17 +1226,17 @@ export const LaporanPage: React.FC = () => {
             </div>
 
             {preRestoreBackup && preRestoreSummary && (
-              <div className="rounded-xl border border-[#bbf7d0] bg-[#f4faf7] p-4">
+              <div className="rounded-2xl bg-[#e6f7ee] p-4 shadow-[0_6px_24px_rgba(13,37,48,0.04)]">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-start gap-2.5">
-                    <ArchiveRestore className="mt-0.5 h-4.5 w-4.5 shrink-0 text-[#14533c]" />
+                    <ArchiveRestore className="mt-0.5 h-4.5 w-4.5 shrink-0 text-[#15803d]" />
                     <div>
-                      <div className="text-xs font-semibold text-[#14533c]">
+                      <div className="text-xs font-bold text-[#15803d]">
                         Cadangan Otomatis Pra-Restore Tersimpan
                       </div>
-                      <p className="mt-0.5 text-xs text-[#565e59]">
+                      <p className="mt-0.5 text-xs text-[#13222b]">
                         Dibuat otomatis pada{' '}
-                        <strong className="text-[#141816]">
+                        <strong className="font-bold">
                           {new Date(preRestoreBackup.savedAt).toLocaleString('id-ID')}
                         </strong>{' '}
                         ({preRestoreSummary.totalItems} item, {preRestoreSummary.stockMonths.length}{' '}
@@ -1252,7 +1248,7 @@ export const LaporanPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleDownloadPreRestoreSnapshot}
-                      className="flex h-8 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#14533c] hover:bg-[#ecf5f1] cursor-pointer"
+                      className="flex h-8.5 items-center gap-1.5 rounded-xl bg-white px-3 text-xs font-semibold text-[#15803d] shadow-xs transition hover:bg-[#f7faf9] cursor-pointer"
                     >
                       <Download className="h-3.5 w-3.5" />
                       Unduh Cadangan Lama
@@ -1261,7 +1257,7 @@ export const LaporanPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setShowRollbackModal(true)}
-                        className="flex h-8 items-center gap-1.5 rounded-md bg-[#14533c] px-3 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                        className="flex h-8.5 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-3.5 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
                         Pulihkan Cadangan Ini
@@ -1277,21 +1273,21 @@ export const LaporanPage: React.FC = () => {
 
       {/* MODAL KIRIM TELEGRAM */}
       {showTgModal && (
-        <div className="no-print fixed inset-0 z-120 flex items-center justify-center bg-[#111614]/45 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-md overflow-hidden rounded-xl border border-[#e5e5df] bg-white shadow-[0_24px_60px_rgba(17,22,20,0.18)]">
-            <div className="flex items-start justify-between gap-2 border-b border-[#e5e5df] px-5 py-4">
+        <div className="no-print fixed inset-0 z-120 flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+            <div className="flex items-start justify-between gap-2 border-b border-[#edf2f0] px-5 py-4">
               <div>
-                <h3 className="font-display text-base font-semibold text-[#141816]">
+                <h3 className="font-display text-base font-bold text-[#13222b]">
                   Kirim Laporan ke Telegram
                 </h3>
-                <p className="mt-0.5 text-xs text-[#565e59]">
+                <p className="mt-0.5 text-xs text-[#64748b]">
                   {activePresetMeta.label} · {isMonthScoped ? monthLabel : fullDateLabel}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowTgModal(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-[#7c8580] hover:bg-[#f3f3ee] hover:text-[#141816] cursor-pointer"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1299,8 +1295,8 @@ export const LaporanPage: React.FC = () => {
 
             {!isCloudConnected ? (
               <div className="p-5">
-                <div className="rounded-lg border border-[#f3d692] bg-[#fffcf2] p-3.5 text-xs text-[#92400e]">
-                  <div className="flex items-center gap-1.5 font-semibold">
+                <div className="rounded-xl bg-[#fef3c7] p-3.5 text-xs text-[#92400e]">
+                  <div className="flex items-center gap-1.5 font-bold">
                     <Database className="h-3.5 w-3.5 text-[#b45309]" />
                     Koneksi Google Apps Script Belum Aktif
                   </div>
@@ -1313,7 +1309,7 @@ export const LaporanPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowTgModal(false)}
-                    className="h-8.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#565e59] hover:bg-[#f3f3ee] cursor-pointer"
+                    className="h-9 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
                   >
                     Tutup
                   </button>
@@ -1323,7 +1319,7 @@ export const LaporanPage: React.FC = () => {
                       setShowTgModal(false);
                       navigateTo('db');
                     }}
-                    className="h-8.5 rounded-md bg-[#14533c] px-3.5 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                    className="h-9 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
                   >
                     Buka Koneksi Database
                   </button>
@@ -1332,23 +1328,23 @@ export const LaporanPage: React.FC = () => {
             ) : (
               <>
                 <div className="p-5">
-                  <div className="rounded-lg border border-[#e5e5df] bg-[#fafaf8] p-3">
-                    <div className="mb-1 text-[11px] font-medium text-[#7c8580]">
+                  <div className="rounded-xl border border-[#edf2f0] bg-[#f7faf9] p-3">
+                    <div className="mb-1 text-[11px] font-semibold text-[#64748b]">
                       Cuplikan teks yang akan dikirim ({charCount} karakter):
                     </div>
-                    <pre className="font-mono-num max-h-40 overflow-y-auto text-[11px] whitespace-pre-wrap text-[#141816]">
+                    <pre className="font-mono-num max-h-40 overflow-y-auto text-[11px] whitespace-pre-wrap text-[#13222b]">
                       {currentReportText.slice(0, 650)}
                       {currentReportText.length > 650 ? '\n…' : ''}
                     </pre>
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2 border-t border-[#e5e5df] bg-[#fafaf8] px-5 py-3">
+                <div className="flex justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3">
                   <button
                     type="button"
                     onClick={() => setShowTgModal(false)}
                     disabled={tgSending}
-                    className="h-8.5 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#565e59] hover:bg-[#f3f3ee] cursor-pointer"
+                    className="h-9 rounded-xl bg-white px-3.5 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
                   >
                     Batal
                   </button>
@@ -1356,7 +1352,7 @@ export const LaporanPage: React.FC = () => {
                     type="button"
                     onClick={handleConfirmSendTelegram}
                     disabled={tgSending}
-                    className="flex h-8.5 items-center gap-1.5 rounded-md bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] disabled:opacity-60 cursor-pointer"
+                    className="flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] disabled:opacity-60 cursor-pointer"
                   >
                     <Send className="h-3.5 w-3.5" />
                     {tgSending ? 'Mengirim…' : 'Ya, Kirim Sekarang'}
@@ -1370,14 +1366,14 @@ export const LaporanPage: React.FC = () => {
 
       {/* MODAL RESTORE BACKUP JSON */}
       {pendingRestore && pendingRestore.validation.summary && (
-        <div className="no-print fixed inset-0 z-120 flex items-center justify-center bg-[#111614]/45 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-lg overflow-hidden rounded-xl border border-[#e5e5df] bg-white shadow-[0_24px_60px_rgba(17,22,20,0.18)]">
-            <div className="flex items-start justify-between gap-2 border-b border-[#e5e5df] px-5 py-4">
+        <div className="no-print fixed inset-0 z-120 flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+            <div className="flex items-start justify-between gap-2 border-b border-[#edf2f0] px-5 py-4">
               <div>
-                <h3 className="font-display text-base font-semibold text-[#141816]">
+                <h3 className="font-display text-base font-bold text-[#13222b]">
                   Konfirmasi Restore Backup JSON
                 </h3>
-                <p className="mt-0.5 text-xs text-[#565e59]">
+                <p className="mt-0.5 text-xs text-[#64748b]">
                   File tervalidasi: {pendingRestore.fileName}
                 </p>
               </div>
@@ -1385,61 +1381,61 @@ export const LaporanPage: React.FC = () => {
                 type="button"
                 onClick={() => setPendingRestore(null)}
                 disabled={restoring}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-[#7c8580] hover:bg-[#f3f3ee] hover:text-[#141816] cursor-pointer"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="px-5 py-4">
-              <div className="overflow-hidden rounded-lg border border-[#e5e5df]">
+              <div className="overflow-hidden rounded-xl border border-[#edf2f0]">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-[#fafaf8] text-[11px] font-medium text-[#565e59]">
-                    <tr className="border-b border-[#e5e5df]">
+                  <thead className="bg-[#f7faf9] text-[11px] font-bold uppercase tracking-[0.04em] text-[#64748b]">
+                    <tr className="border-b border-[#edf2f0]">
                       <th className="px-3 py-2">Komponen Data</th>
                       <th className="px-3 py-2 text-right">Data Saat Ini</th>
-                      <th className="px-3 py-2 text-right text-[#14533c]">File Backup</th>
+                      <th className="px-3 py-2 text-right text-[#15803d]">File Backup</th>
                     </tr>
                   </thead>
-                  <tbody className="font-mono-num divide-y divide-[#efefea]">
+                  <tbody className="font-mono-num divide-y divide-[#edf2f0]">
                     <tr>
-                      <td className="px-3 py-1.5 font-sans text-[#565e59]">Master Item</td>
+                      <td className="px-3 py-1.5 font-sans text-[#475569]">Master Item</td>
                       <td className="px-3 py-1.5 text-right">{currentDataSummary.totalItems}</td>
-                      <td className="px-3 py-1.5 text-right font-semibold text-[#14533c]">
+                      <td className="px-3 py-1.5 text-right font-bold text-[#15803d]">
                         {pendingRestore.validation.summary.totalItems}
                       </td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-1.5 font-sans text-[#565e59]">Periode Stok</td>
+                      <td className="px-3 py-1.5 font-sans text-[#475569]">Periode Stok</td>
                       <td className="px-3 py-1.5 text-right">
                         {currentDataSummary.stockMonths.length} bulan
                       </td>
-                      <td className="px-3 py-1.5 text-right font-semibold text-[#14533c]">
+                      <td className="px-3 py-1.5 text-right font-bold text-[#15803d]">
                         {pendingRestore.validation.summary.stockMonths.length} bulan
                       </td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-1.5 font-sans text-[#565e59]">Transaksi OMSET</td>
+                      <td className="px-3 py-1.5 font-sans text-[#475569]">Transaksi OMSET</td>
                       <td className="px-3 py-1.5 text-right">
                         {currentDataSummary.omsetDaysCount} hari
                       </td>
-                      <td className="px-3 py-1.5 text-right font-semibold text-[#14533c]">
+                      <td className="px-3 py-1.5 text-right font-bold text-[#15803d]">
                         {pendingRestore.validation.summary.omsetDaysCount} hari
                       </td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-1.5 font-sans text-[#565e59]">Karyawan</td>
+                      <td className="px-3 py-1.5 font-sans text-[#475569]">Karyawan</td>
                       <td className="px-3 py-1.5 text-right">{currentDataSummary.employeeCount}</td>
-                      <td className="px-3 py-1.5 text-right font-semibold text-[#14533c]">
+                      <td className="px-3 py-1.5 text-right font-bold text-[#15803d]">
                         {pendingRestore.validation.summary.employeeCount}
                       </td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-1.5 font-sans text-[#565e59]">Periode Absensi</td>
+                      <td className="px-3 py-1.5 font-sans text-[#475569]">Periode Absensi</td>
                       <td className="px-3 py-1.5 text-right">
                         {currentDataSummary.attendanceMonths.length} bulan
                       </td>
-                      <td className="px-3 py-1.5 text-right font-semibold text-[#14533c]">
+                      <td className="px-3 py-1.5 text-right font-bold text-[#15803d]">
                         {pendingRestore.validation.summary.attendanceMonths.length} bulan
                       </td>
                     </tr>
@@ -1448,19 +1444,19 @@ export const LaporanPage: React.FC = () => {
               </div>
 
               {pendingRestore.validation.warnings.length > 0 && (
-                <div className="mt-3 rounded-lg border border-[#f3d692] bg-[#fffcf2] p-2.5 text-[11px] text-[#92400e]">
+                <div className="mt-3 rounded-xl bg-[#fef3c7] p-2.5 text-[11px] text-[#92400e]">
                   {pendingRestore.validation.warnings.map((w, idx) => (
                     <div key={idx}>• {w}</div>
                   ))}
                 </div>
               )}
 
-              <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-lg border border-[#bbf7d0] bg-[#f4faf7] p-3 text-xs text-[#14533c]">
+              <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl bg-[#e6f7ee] p-3 text-xs text-[#15803d]">
                 <input
                   type="checkbox"
                   checked={autoDownloadOldBackup}
                   onChange={(e) => setAutoDownloadOldBackup(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-[#14533c]"
+                  className="mt-0.5 h-4 w-4 accent-[#2eb86b]"
                 />
                 <span>
                   <strong>Unduh otomatis cadangan data lama (.json)</strong> sebelum menimpa data.
@@ -1469,12 +1465,12 @@ export const LaporanPage: React.FC = () => {
               </label>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-[#e5e5df] bg-[#fafaf8] px-5 py-3">
+            <div className="flex justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3">
               <button
                 type="button"
                 onClick={() => setPendingRestore(null)}
                 disabled={restoring}
-                className="h-8.5 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#565e59] hover:bg-[#f3f3ee] cursor-pointer"
+                className="h-9 rounded-xl bg-white px-3.5 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
               >
                 Batal
               </button>
@@ -1482,7 +1478,7 @@ export const LaporanPage: React.FC = () => {
                 type="button"
                 onClick={handleExecuteRestore}
                 disabled={restoring}
-                className="flex h-8.5 items-center gap-1.5 rounded-md bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] disabled:opacity-60 cursor-pointer"
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] disabled:opacity-60 cursor-pointer"
               >
                 <ShieldCheck className="h-3.5 w-3.5" />
                 {restoring ? 'Memulihkan…' : 'Buat Cadangan & Restore Data'}
@@ -1494,32 +1490,32 @@ export const LaporanPage: React.FC = () => {
 
       {/* MODAL ROLLBACK */}
       {showRollbackModal && preRestoreBackup && (
-        <div className="no-print fixed inset-0 z-120 flex items-center justify-center bg-[#111614]/45 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-md overflow-hidden rounded-xl border border-[#e5e5df] bg-white shadow-[0_24px_60px_rgba(17,22,20,0.18)]">
+        <div className="no-print fixed inset-0 z-120 flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
             <div className="px-5 py-4">
-              <h3 className="font-display text-base font-semibold text-[#141816]">
+              <h3 className="font-display text-base font-bold text-[#13222b]">
                 Pulihkan Cadangan Pra-Restore?
               </h3>
-              <p className="mt-1.5 text-xs leading-relaxed text-[#565e59]">
+              <p className="mt-1.5 text-xs leading-relaxed text-[#475569]">
                 Data aplikasi akan dikembalikan ke kondisi sebelum restore terakhir (
-                <strong className="text-[#141816]">
+                <strong className="text-[#13222b]">
                   {new Date(preRestoreBackup.savedAt).toLocaleString('id-ID')}
                 </strong>
                 ). Data saat ini tetap dicadangkan terlebih dahulu.
               </p>
             </div>
-            <div className="flex justify-end gap-2 border-t border-[#e5e5df] bg-[#fafaf8] px-5 py-3">
+            <div className="flex justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3">
               <button
                 type="button"
                 onClick={() => setShowRollbackModal(false)}
-                className="h-8.5 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#565e59] hover:bg-[#f3f3ee] cursor-pointer"
+                className="h-9 rounded-xl bg-white px-3.5 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleConfirmRollback}
-                className="h-8.5 rounded-md bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                className="h-9 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
               >
                 Ya, Pulihkan Cadangan
               </button>

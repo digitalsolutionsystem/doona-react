@@ -3,6 +3,7 @@ import type {
   AppData,
   AttendanceDraftMap,
   AttendanceRecord,
+  AttendanceShift,
   AttendanceStatus,
   Employee,
   PayrollCycle,
@@ -16,6 +17,71 @@ export const ATTENDANCE_STATUSES: AttendanceStatus[] = [
   'Alfa',
   'Libur',
 ];
+
+export interface ShiftPreset {
+  id: AttendanceShift;
+  label: string;
+  shortLabel: string;
+  start: string;
+  end: string;
+}
+
+export const SHIFT_PRESETS: Record<AttendanceShift, ShiftPreset> = {
+  Pagi: { id: 'Pagi', label: 'Shift Pagi (08:00–16:00)', shortLabel: 'Pagi · 08:00–16:00', start: '08:00', end: '16:00' },
+  Siang: { id: 'Siang', label: 'Shift Siang (14:00–22:00)', shortLabel: 'Siang · 14:00–22:00', start: '14:00', end: '22:00' },
+  Full: { id: 'Full', label: 'Full Day (08:00–17:00)', shortLabel: 'Full · 08:00–17:00', start: '08:00', end: '17:00' },
+  Fleksibel: { id: 'Fleksibel', label: 'Fleksibel', shortLabel: 'Fleksibel', start: '', end: '' },
+};
+
+export const SHIFT_LIST: ShiftPreset[] = [
+  SHIFT_PRESETS.Full,
+  SHIFT_PRESETS.Pagi,
+  SHIFT_PRESETS.Siang,
+  SHIFT_PRESETS.Fleksibel,
+];
+
+export function getCurrentTimeHHMM(now: Date = new Date()): string {
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+export function parseTimeToMinutes(hhmm?: string): number | null {
+  if (!hhmm || typeof hhmm !== 'string') return null;
+  const m = hhmm.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return h * 60 + min;
+}
+
+export function calcLateMinutes(shift?: AttendanceShift, checkIn?: string): number {
+  const preset = SHIFT_PRESETS[shift || 'Full'];
+  if (!preset || !preset.start) return 0;
+  const startMins = parseTimeToMinutes(preset.start);
+  const inMins = parseTimeToMinutes(checkIn);
+  if (startMins === null || inMins === null) return 0;
+  return Math.max(0, inMins - startMins);
+}
+
+export function calcWorkDurationMinutes(checkIn?: string, checkOut?: string): number | null {
+  const inMins = parseTimeToMinutes(checkIn);
+  const outMins = parseTimeToMinutes(checkOut);
+  if (inMins === null || outMins === null) return null;
+  let diff = outMins - inMins;
+  if (diff < 0) diff += 24 * 60;
+  return diff;
+}
+
+export function formatDurationLabel(mins: number | null): string {
+  if (mins === null || mins < 0) return '–';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}j`;
+  return `${h}j ${m}m`;
+}
 
 export function getEmployees(state: AppData): Employee[] {
   return Array.isArray(state.karyawan) ? state.karyawan : DEFAULT_KARYAWAN;
@@ -363,15 +429,21 @@ export function getDayAttendanceSummary(
 }
 
 /**
- * Row model siap render untuk tab Harian Absensi (identik dengan logika views.ab() harian di HTML lama:
- * karyawan yang belum disimpan ditampilkan dengan default pratinjau status 'Hadir' & lembur 0).
+ * Row model HRIS siap render untuk tab Harian Absensi:
+ * membedakan secara tegas antara status Belum Dicatat (unrecorded), Draf (belum diverifikasi),
+ * dan Terverifikasi (tersimpan), lengkap dengan perhitungan durasi kerja & keterlambatan.
  */
 export interface DailyAttendanceRow {
   emp: Employee;
   committed?: AttendanceRecord;
   draft?: AttendanceRecord;
-  effective: AttendanceRecord;
+  effective: AttendanceRecord | null;
+  isRecorded: boolean;
+  hasDraft: boolean;
   isSaved: boolean;
+  shift: AttendanceShift;
+  lateMinutes: number;
+  workMinutes: number | null;
   gp: number;
   ul: number;
   tot: number;
@@ -385,11 +457,24 @@ export function getDailyAttendanceViewModel(
 ): {
   rows: DailyAttendanceRow[];
   hadir: number;
+  izin: number;
+  sakit: number;
+  alfa: number;
+  libur: number;
+  absent: number;
+  lateCount: number;
+  onTimeCount: number;
   lembur: number;
   gaji: number;
+  gajiPokok: number;
+  uangLembur: number;
   saved: number;
   pending: number;
+  recordedCount: number;
+  unrecordedCount: number;
+  draftRowCount: number;
   draftDayCount: number;
+  avgWorkMinutes: number | null;
 } {
   const activeEmps = getActiveEmployees(state);
   const absDay = state.absensi?.[ym]?.[day] || {};
@@ -397,28 +482,78 @@ export function getDailyAttendanceViewModel(
   const draftDay = draftMap[draftKey] || {};
 
   let hadir = 0;
+  let izin = 0;
+  let sakit = 0;
+  let alfa = 0;
+  let libur = 0;
+  let lateCount = 0;
+  let onTimeCount = 0;
   let lembur = 0;
   let gaji = 0;
+  let gajiPokok = 0;
+  let uangLembur = 0;
   let saved = 0;
+  let recordedCount = 0;
+  let draftRowCount = 0;
+  let totalWorkMinutes = 0;
+  let timedWorkCount = 0;
 
   const rows: DailyAttendanceRow[] = activeEmps.map((emp) => {
     const committed = absDay[emp.id];
     const draft = draftDay[emp.id];
-    const effective: AttendanceRecord = draft || committed || { status: 'Hadir', lembur: 0 };
+    const effective: AttendanceRecord | null = draft || committed || null;
+    const isRecorded = Boolean(effective);
+    const hasDraft = Boolean(draft);
     const isSaved = Boolean(committed) && !draft;
+    const shift: AttendanceShift = effective?.shift || emp.shiftDefault || 'Full';
+    const lateMinutes =
+      effective?.status === 'Hadir' ? calcLateMinutes(shift, effective.checkIn) : 0;
+    const workMinutes =
+      effective?.status === 'Hadir'
+        ? calcWorkDurationMinutes(effective.checkIn, effective.checkOut)
+        : null;
+
     const pay = calcAttendanceRecordPay(emp, effective);
 
     if (isSaved) saved++;
-    if (effective.status === 'Hadir') hadir++;
-    lembur += pay.lm;
-    gaji += pay.tot;
+    if (isRecorded) recordedCount++;
+    if (hasDraft) draftRowCount++;
+
+    if (effective) {
+      if (effective.status === 'Hadir') {
+        hadir++;
+        if (lateMinutes > 0) lateCount++;
+        else if (effective.checkIn) onTimeCount++;
+        if (workMinutes !== null) {
+          totalWorkMinutes += workMinutes;
+          timedWorkCount++;
+        }
+      } else if (effective.status === 'Izin') {
+        izin++;
+      } else if (effective.status === 'Sakit') {
+        sakit++;
+      } else if (effective.status === 'Alfa') {
+        alfa++;
+      } else if (effective.status === 'Libur') {
+        libur++;
+      }
+      lembur += pay.lm;
+      gajiPokok += pay.gp;
+      uangLembur += pay.ul;
+      gaji += pay.tot;
+    }
 
     return {
       emp,
       committed,
       draft,
       effective,
+      isRecorded,
+      hasDraft,
       isSaved,
+      shift,
+      lateMinutes,
+      workMinutes,
       gp: pay.gp,
       ul: pay.ul,
       tot: pay.tot,
@@ -432,11 +567,24 @@ export function getDailyAttendanceViewModel(
   return {
     rows,
     hadir,
+    izin,
+    sakit,
+    alfa,
+    libur,
+    absent: izin + sakit + alfa + libur,
+    lateCount,
+    onTimeCount,
     lembur,
     gaji,
+    gajiPokok,
+    uangLembur,
     saved,
     pending: activeEmps.length - saved,
+    recordedCount,
+    unrecordedCount: activeEmps.length - recordedCount,
+    draftRowCount,
     draftDayCount,
+    avgWorkMinutes: timedWorkCount > 0 ? Math.round(totalWorkMinutes / timedWorkCount) : null,
   };
 }
 

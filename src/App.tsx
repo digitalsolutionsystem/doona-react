@@ -18,11 +18,11 @@ import { TabelBulananPage } from './pages/TabelBulananPage';
 
 const AppShell: React.FC = () => {
   const { activeMenu, isViewer } = useApp();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#f7f7f4] text-[#141816]">
+    <div className="min-h-screen bg-[#eef3f1] text-[#13222b]">
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
@@ -32,7 +32,7 @@ const AppShell: React.FC = () => {
       />
 
       <div className={`dg-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <main className="flex h-full max-h-full flex-1 flex-col overflow-hidden">
+        <main className="dg-main">
           {activeMenu === 'home' ? (
             <BerandaPage />
           ) : activeMenu === 'in' ? (
@@ -60,7 +60,7 @@ const AppShell: React.FC = () => {
       </div>
 
       {isViewer && (
-        <div className="no-print pointer-events-none fixed right-5 bottom-4 z-60 rounded-md border border-[#202824] bg-[#111614] px-3 py-1.5 text-xs font-medium text-[#e5e7e6]">
+        <div className="no-print pointer-events-none fixed right-5 bottom-4 z-60 rounded-xl bg-[#0d2530] px-3.5 py-2 text-xs font-semibold text-white shadow-[0_8px_24px_rgba(13,37,48,0.2)]">
           Mode hanya-baca (Viewer)
         </div>
       )}

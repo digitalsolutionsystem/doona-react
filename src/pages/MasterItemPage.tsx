@@ -28,7 +28,6 @@ export const MasterItemPage: React.FC = () => {
   const {
     state,
     isViewer,
-    sync,
     addMasterItem,
     updateMasterItem,
     toggleMasterItemActive,
@@ -250,179 +249,44 @@ export const MasterItemPage: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white">
-      {/* TOP HEADER */}
-      <header className="no-print flex flex-wrap items-center justify-between gap-3 border-b border-[#e5e5df] px-5 py-3.5 md:px-6">
-        <div>
-          <h1 className="font-display text-lg font-semibold text-[#141816]">Master Item</h1>
-          <p className="text-xs text-[#7c8580]">
-            Sumber identitas utama seluruh barang persediaan · ID item bersifat tetap
-          </p>
+    <div className="dg-page">
+      {/* STICKY FLOATING TOP HEADER */}
+      <div className="dg-sticky-header no-print px-4 pt-3 pb-1 md:px-6">
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] md:px-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="font-display text-[17px] font-bold tracking-[-0.015em] text-[#13222b]">
+            Master Item
+          </h1>
+          <span className="font-mono-num rounded-lg bg-[#e6f7ee] px-2.5 py-1 text-[11px] font-semibold text-[#15803d]">
+            {counts.aktif} aktif
+          </span>
+          {counts.arsip > 0 && (
+            <span className="font-mono-num rounded-lg bg-[#f3f7f5] px-2.5 py-1 text-[11px] font-semibold text-[#64748b]">
+              {counts.arsip} arsip
+            </span>
+          )}
         </div>
+
         <button
           type="button"
           onClick={() => navigateTo('st')}
-          className="inline-flex h-8.5 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] whitespace-nowrap shrink-0 cursor-pointer"
+          className="inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e6f7ee] hover:text-[#15803d] whitespace-nowrap shrink-0 cursor-pointer"
         >
-          <Box className="h-3.5 w-3.5 text-[#14533c]" />
+          <Box className="h-3.5 w-3.5 text-[#2eb86b]" />
           <span>Setting Satuan</span>
         </button>
-      </header>
-
-      {/* QUICK ADD FORM BAR */}
-      {!isViewer && (
-        <form
-          onSubmit={handleQuickAdd}
-          className="no-print flex flex-wrap items-end gap-2.5 border-b border-[#e5e5df] bg-[#fafaf8] px-5 py-3 md:px-6"
-        >
-          <div className="min-w-[180px] flex-1">
-            <label className="mb-1 block text-[11px] font-medium text-[#565e59]">
-              Nama Item Baru
-            </label>
-            <input
-              type="text"
-              value={newNama}
-              onChange={(e) => setNewNama(e.target.value)}
-              placeholder="Contoh: Dimsum Udang"
-              className="h-8.5 w-full rounded-md border border-[#e5e5df] bg-white px-3 text-[13px] text-[#141816] placeholder:text-[#9aa39e] focus:border-[#14533c] focus:outline-none"
-            />
-          </div>
-
-          <div className="w-40">
-            <label className="mb-1 block text-[11px] font-medium text-[#565e59]">Kategori</label>
-            <input
-              type="text"
-              list="master-kat-list"
-              value={newKat}
-              onChange={(e) => setNewKat(e.target.value)}
-              placeholder="Kategori"
-              className="h-8.5 w-full rounded-md border border-[#e5e5df] bg-white px-2.5 text-[13px] text-[#141816] focus:border-[#14533c] focus:outline-none"
-            />
-            <datalist id="master-kat-list">
-              {categories.map((k) => (
-                <option key={k} value={k} />
-              ))}
-            </datalist>
-          </div>
-
-          <div className="w-28">
-            <label className="mb-1 block text-[11px] font-medium text-[#565e59]">Satuan</label>
-            <select
-              value={newSat}
-              onChange={(e) => setNewSat(e.target.value)}
-              className="h-8.5 w-full rounded-md border border-[#e5e5df] bg-white px-2.5 text-[13px] text-[#141816] focus:border-[#14533c] focus:outline-none"
-            >
-              {satuanList.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="w-28">
-            <label className="mb-1 block text-[11px] font-medium text-[#565e59]">Stok Min.</label>
-            <input
-              type="number"
-              min={0}
-              step="any"
-              value={newMin}
-              onChange={(e) => setNewMin(e.target.value)}
-              placeholder="0"
-              className="font-mono-num h-8.5 w-full rounded-md border border-[#e5e5df] bg-white px-2.5 text-[13px] text-[#141816] focus:border-[#14533c] focus:outline-none"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="inline-flex h-8.5 items-center gap-1.5 rounded-md bg-[#14533c] px-3.5 text-xs font-medium text-white hover:bg-[#0f3f2d] whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Tambah Item</span>
-          </button>
-        </form>
-      )}
-
-      {/* SEARCH & FILTER BAR */}
-      <div className="no-print flex flex-wrap items-center justify-between gap-2.5 border-b border-[#e5e5df] px-5 py-2.5 md:px-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-[#9aa39e]" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nama, ID, kategori, satuan…"
-              aria-label="Cari Master Item"
-              className="h-8 w-60 rounded-md border border-[#e5e5df] bg-white pr-7 pl-8 text-xs text-[#141816] placeholder:text-[#9aa39e] focus:border-[#14533c] focus:outline-none"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                aria-label="Bersihkan pencarian"
-                className="absolute top-1/2 right-2 -translate-y-1/2 text-[#9aa39e] hover:text-[#141816] cursor-pointer"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-
-          <select
-            value={catFilter}
-            onChange={(e) => setCatFilter(e.target.value)}
-            aria-label="Filter kategori"
-            className="h-8 rounded-md border border-[#e5e5df] bg-white px-2.5 text-xs text-[#565e59] focus:border-[#14533c] focus:outline-none"
-          >
-            <option value="all">Semua kategori ({categories.length})</option>
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div
-          className="flex items-center gap-0.5 rounded-md border border-[#e5e5df] bg-[#f7f7f4] p-0.5"
-          role="tablist"
-          aria-label="Filter status item"
-        >
-          {(
-            [
-              { id: 'all', label: 'Semua', count: counts.total },
-              { id: 'aktif', label: 'Aktif', count: counts.aktif },
-              { id: 'arsip', label: 'Arsip', count: counts.arsip },
-            ] as Array<{ id: StatusFilter; label: string; count: number }>
-          ).map((tab) => {
-            const on = statusFilter === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={on}
-                onClick={() => setStatusFilter(tab.id)}
-                className={`h-6.5 rounded px-2.5 text-xs font-medium transition whitespace-nowrap shrink-0 cursor-pointer ${
-                  on ? 'bg-white text-[#141816] shadow-[0_1px_2px_rgba(17,22,20,0.06)]' : 'text-[#565e59] hover:text-[#141816]'
-                }`}
-              >
-                {tab.label} <span className="font-mono-num opacity-75">({tab.count})</span>
-              </button>
-            );
-          })}
-        </div>
+        </header>
       </div>
 
       {/* FEEDBACK BANNER */}
       {feedback && (
         <div
-          className={`no-print flex items-center justify-between gap-2 border-b px-5 py-2 text-xs font-medium md:px-6 ${
+          className={`no-print mx-4 mt-3 flex shrink-0 items-center justify-between gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold shadow-sm md:mx-6 ${
             feedback.tone === 'err'
-              ? 'border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]'
+              ? 'bg-[#ef4444] text-white'
               : feedback.tone === 'info'
-                ? 'border-[#e5e5df] bg-[#fafaf8] text-[#141816]'
-                : 'border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]'
+                ? 'bg-white text-[#13222b]'
+                : 'bg-[#2eb86b] text-white'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -437,224 +301,380 @@ export const MasterItemPage: React.FC = () => {
             type="button"
             onClick={() => setFeedback(null)}
             aria-label="Tutup pesan"
-            className="opacity-70 hover:opacity-100 cursor-pointer"
+            className="opacity-80 hover:opacity-100 cursor-pointer"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
 
-      {/* ITEM TABLE */}
-      <div className="dg-scroll min-h-0 flex-1 overflow-auto">
-        {filteredItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
-            <Package className="mb-3 h-8 w-8 text-[#9aa39e]" />
-            <p className="text-sm font-medium text-[#141816]">
-              {state.items.length === 0
-                ? 'Belum ada item di Master Item.'
-                : 'Tidak ada item yang cocok dengan pencarian atau filter.'}
-            </p>
-            {(searchQuery || catFilter !== 'all' || statusFilter !== 'all') && (
+      {/* MAIN SCROLLABLE WORKSPACE */}
+      <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
+        <div className="space-y-4">
+          {/* QUICK ADD CARD */}
+          {!isViewer && (
+            <form
+              onSubmit={handleQuickAdd}
+              className="no-print flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] md:px-5"
+            >
+              <div className="min-w-[180px] flex-1">
+                <label className="mb-1.5 block text-[11px] font-semibold text-[#64748b]">
+                  Nama Item Baru
+                </label>
+                <input
+                  type="text"
+                  value={newNama}
+                  onChange={(e) => setNewNama(e.target.value)}
+                  placeholder="Contoh: Dimsum Udang"
+                  className="h-9 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-[13px] text-[#13222b] placeholder:text-[#94a3b8] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
+                />
+              </div>
+
+              <div className="w-44">
+                <label className="mb-1.5 block text-[11px] font-semibold text-[#64748b]">
+                  Kategori
+                </label>
+                <input
+                  type="text"
+                  list="master-kat-list"
+                  value={newKat}
+                  onChange={(e) => setNewKat(e.target.value)}
+                  placeholder="Kategori"
+                  className="h-9 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-[13px] text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
+                />
+                <datalist id="master-kat-list">
+                  {categories.map((k) => (
+                    <option key={k} value={k} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div className="w-28">
+                <label className="mb-1.5 block text-[11px] font-semibold text-[#64748b]">
+                  Satuan
+                </label>
+                <select
+                  value={newSat}
+                  onChange={(e) => setNewSat(e.target.value)}
+                  className="h-9 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-2.5 text-[13px] text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
+                >
+                  {satuanList.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="w-28">
+                <label className="mb-1.5 block text-[11px] font-semibold text-[#64748b]">
+                  Stok Min.
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={newMin}
+                  onChange={(e) => setNewMin(e.target.value)}
+                  placeholder="0"
+                  className="font-mono-num h-9 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-[13px] text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
+                />
+              </div>
+
               <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setCatFilter('all');
-                  setStatusFilter('all');
-                }}
-                className="mt-3 h-8 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#565e59] hover:bg-[#f3f3ee] cursor-pointer"
+                type="submit"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] whitespace-nowrap shrink-0 cursor-pointer"
               >
-                Reset filter
+                <Plus className="h-3.5 w-3.5" />
+                <span>Tambah Item</span>
               </button>
-            )}
-          </div>
-        ) : (
-          <table className="w-full border-collapse text-left text-[13px]">
-            <thead className="sticky top-0 z-10 border-b border-[#e5e5df] bg-[#fafaf8] text-xs font-medium text-[#565e59]">
-              <tr>
-                <th className="px-5 py-2.5 md:px-6">Item &amp; ID</th>
-                <th className="px-3 py-2.5">Kategori</th>
-                <th className="px-3 py-2.5">Satuan</th>
-                <th className="px-3 py-2.5 text-right">Stok Min.</th>
-                <th className="px-3 py-2.5">Status</th>
-                {!isViewer && <th className="px-5 py-2.5 text-right md:px-6">Aksi</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#efefea]">
-              {filteredItems.map((item) => {
-                const stats = itemStatsMap[item.id];
-                const isCustomSat = Boolean(item.sat && !satuanList.includes(item.sat));
-                const minValue =
-                  minDrafts[item.id] !== undefined ? minDrafts[item.id] : String(item.min ?? 0);
+            </form>
+          )}
 
-                return (
-                  <tr
-                    key={item.id}
-                    className={`transition-colors hover:bg-[#fafaf8] ${
-                      item.aktif ? '' : 'bg-[#fafaf8]/70 opacity-65'
-                    }`}
-                  >
-                    <td className="px-5 py-2.5 md:px-6">
-                      <div className="font-medium text-[#141816]">{item.nama}</div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-[#7c8580]">
-                        <span className="font-mono-num">{item.id}</span>
-                        {stats?.hasHistory && (
-                          <>
-                            <span aria-hidden="true">·</span>
-                            <span className="font-mono-num">
-                              {stats.totalEntries} catatan ({stats.monthsCount} bln)
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </td>
+          {/* TABLE CARD */}
+          <section className="overflow-hidden rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
+            {/* SEARCH & FILTER TOOLBAR */}
+            <div className="no-print flex flex-wrap items-center justify-between gap-2.5 border-b border-[#edf2f0] px-4 py-3 md:px-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Cari nama, ID, kategori, satuan…"
+                    aria-label="Cari Master Item"
+                    className="h-8.5 w-60 rounded-xl bg-[#f3f7f5] pr-7 pl-8.5 text-xs text-[#13222b] placeholder:text-[#94a3b8] outline-none transition focus:bg-white focus:ring-2 focus:ring-[#2eb86b]"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      aria-label="Bersihkan pencarian"
+                      className="absolute top-1/2 right-2.5 -translate-y-1/2 text-[#94a3b8] hover:text-[#13222b] cursor-pointer"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
 
-                    <td className="px-3 py-2.5 text-[#565e59] whitespace-nowrap">{item.kat}</td>
+                <select
+                  value={catFilter}
+                  onChange={(e) => setCatFilter(e.target.value)}
+                  aria-label="Filter kategori"
+                  className="h-8.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-medium text-[#13222b] outline-none transition focus:ring-2 focus:ring-[#2eb86b]"
+                >
+                  <option value="all">Semua kategori ({categories.length})</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      {isViewer ? (
-                        <span className="text-[#141816]">{item.sat || 'pcs'}</span>
-                      ) : (
-                        <select
-                          value={item.sat || 'pcs'}
-                          onChange={(e) => handleInlineSatChange(item, e.target.value)}
-                          aria-label={`Satuan ${item.nama}`}
-                          className="h-7.5 rounded-md border border-[#e5e5df] bg-white px-2 text-xs font-medium text-[#141816] focus:border-[#14533c] focus:outline-none"
+              <div
+                className="flex items-center gap-1 rounded-xl bg-[#f3f7f5] p-1"
+                role="tablist"
+                aria-label="Filter status item"
+              >
+                {(
+                  [
+                    { id: 'all', label: 'Semua', count: counts.total },
+                    { id: 'aktif', label: 'Aktif', count: counts.aktif },
+                    { id: 'arsip', label: 'Arsip', count: counts.arsip },
+                  ] as Array<{ id: StatusFilter; label: string; count: number }>
+                ).map((tab) => {
+                  const on = statusFilter === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={on}
+                      onClick={() => setStatusFilter(tab.id)}
+                      className={`h-7 rounded-lg px-3 text-xs font-semibold transition whitespace-nowrap shrink-0 cursor-pointer ${
+                        on
+                          ? 'bg-[#2eb86b] text-white shadow-xs'
+                          : 'text-[#64748b] hover:text-[#13222b]'
+                      }`}
+                    >
+                      {tab.label} <span className="font-mono-num opacity-85">({tab.count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ITEM TABLE */}
+            <div className="dg-scroll overflow-x-auto">
+              {filteredItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f3f7f5] text-[#64748b]">
+                    <Package className="h-6 w-6" />
+                  </div>
+                  <p className="text-sm font-semibold text-[#13222b]">
+                    {state.items.length === 0
+                      ? 'Belum ada item di Master Item.'
+                      : 'Tidak ada item yang cocok dengan pencarian atau filter.'}
+                  </p>
+                  {(searchQuery || catFilter !== 'all' || statusFilter !== 'all') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setCatFilter('all');
+                        setStatusFilter('all');
+                      }}
+                      className="mt-3 h-8.5 rounded-xl bg-[#f3f7f5] px-4 text-xs font-semibold text-[#13222b] hover:bg-[#e6f7ee] hover:text-[#15803d] cursor-pointer"
+                    >
+                      Reset filter
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <table className="w-full border-collapse text-left text-[13px]">
+                  <thead className="border-b border-[#edf2f0] bg-[#f7faf9] text-[11px] font-bold uppercase tracking-[0.04em] text-[#64748b]">
+                    <tr>
+                      <th className="px-5 py-3">Item &amp; ID</th>
+                      <th className="px-3 py-3">Kategori</th>
+                      <th className="px-3 py-3">Satuan</th>
+                      <th className="px-3 py-3 text-right">Stok Min.</th>
+                      <th className="px-3 py-3">Status</th>
+                      {!isViewer && <th className="px-5 py-3 text-right">Aksi</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#edf2f0]">
+                    {filteredItems.map((item) => {
+                      const stats = itemStatsMap[item.id];
+                      const isCustomSat = Boolean(item.sat && !satuanList.includes(item.sat));
+                      const minValue =
+                        minDrafts[item.id] !== undefined ? minDrafts[item.id] : String(item.min ?? 0);
+
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`transition-colors hover:bg-[#f7faf9] ${
+                            item.aktif ? '' : 'bg-[#f8faf9]/75 opacity-75'
+                          }`}
                         >
-                          {satuanList.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                          {isCustomSat && <option value={item.sat}>{item.sat} (kustom)</option>}
-                        </select>
-                      )}
-                    </td>
+                          <td className="px-5 py-3">
+                            <div className="font-semibold text-[#13222b]">{item.nama}</div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-[#64748b]">
+                              <span className="font-mono-num">{item.id}</span>
+                              {stats?.hasHistory && (
+                                <>
+                                  <span aria-hidden="true">·</span>
+                                  <span className="font-mono-num">
+                                    {stats.totalEntries} catatan ({stats.monthsCount} bln)
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </td>
 
-                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                      {isViewer ? (
-                        <span className="font-mono-num font-medium text-[#141816]">
-                          {formatNum(item.min)}
-                        </span>
-                      ) : (
-                        <input
-                          type="number"
-                          min={0}
-                          step="any"
-                          value={minValue}
-                          aria-label={`Stok minimum ${item.nama}`}
-                          onChange={(e) =>
-                            setMinDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))
-                          }
-                          onBlur={() => handleInlineMinBlur(item)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') e.currentTarget.blur();
-                          }}
-                          className="font-mono-num h-7.5 w-20 rounded-md border border-[#e5e5df] bg-white px-2 text-right text-xs font-medium text-[#141816] focus:border-[#14533c] focus:outline-none"
-                        />
-                      )}
-                    </td>
+                          <td className="px-3 py-3 whitespace-nowrap">
+                            <span className="rounded-lg bg-[#f3f7f5] px-2.5 py-1 text-xs font-medium text-[#475569]">
+                              {item.kat}
+                            </span>
+                          </td>
 
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      <span
-                        className={`text-xs font-medium ${
-                          item.aktif ? 'text-[#15803d]' : 'text-[#7c8580]'
-                        }`}
-                      >
-                        {item.aktif ? 'Aktif' : 'Arsip'}
-                      </span>
-                    </td>
-
-                    {!isViewer && (
-                      <td className="px-5 py-2.5 text-right whitespace-nowrap md:px-6">
-                        <div className="inline-flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(item)}
-                            className="inline-flex h-7.5 items-center gap-1 rounded-md border border-[#e5e5df] bg-white px-2.5 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
-                          >
-                            <Edit3 className="h-3 w-3" />
-                            <span>Edit</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleToggleActive(item)}
-                            className={`inline-flex h-7.5 items-center gap-1 rounded-md border px-2.5 text-xs font-medium cursor-pointer ${
-                              item.aktif
-                                ? 'border-[#e5e5df] bg-white text-[#565e59] hover:bg-[#f3f3ee]'
-                                : 'border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d] hover:bg-[#dcfce7]'
-                            }`}
-                          >
-                            {item.aktif ? (
-                              <>
-                                <Archive className="h-3 w-3" />
-                                <span>Arsipkan</span>
-                              </>
+                          <td className="px-3 py-3 whitespace-nowrap">
+                            {isViewer ? (
+                              <span className="font-medium text-[#13222b]">{item.sat || 'pcs'}</span>
                             ) : (
-                              <>
-                                <RotateCcw className="h-3 w-3" />
-                                <span>Aktifkan</span>
-                              </>
+                              <select
+                                value={item.sat || 'pcs'}
+                                onChange={(e) => handleInlineSatChange(item, e.target.value)}
+                                aria-label={`Satuan ${item.nama}`}
+                                className="h-8 rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-2.5 text-xs font-semibold text-[#13222b] outline-none focus:border-[#2eb86b] focus:bg-white"
+                              >
+                                {satuanList.map((s) => (
+                                  <option key={s} value={s}>
+                                    {s}
+                                  </option>
+                                ))}
+                                {isCustomSat && <option value={item.sat}>{item.sat} (kustom)</option>}
+                              </select>
                             )}
-                          </button>
+                          </td>
 
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDeleteModal(item)}
-                            aria-label={`Hapus ${item.nama}`}
-                            title={
-                              stats?.hasHistory
-                                ? 'Memiliki histori transaksi — dilindungi dari penghapusan permanen'
-                                : 'Hapus item permanen'
-                            }
-                            className={`inline-flex h-7.5 w-7.5 items-center justify-center rounded-md border cursor-pointer ${
-                              stats?.hasHistory
-                                ? 'border-[#e5e5df] bg-[#fafaf8] text-[#9aa39e] hover:text-[#565e59]'
-                                : 'border-[#fecaca] bg-white text-[#b91c1c] hover:bg-[#fef2f2]'
-                            }`}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+                          <td className="px-3 py-3 text-right whitespace-nowrap">
+                            {isViewer ? (
+                              <span className="font-mono-num font-semibold text-[#13222b]">
+                                {formatNum(item.min)}
+                              </span>
+                            ) : (
+                              <input
+                                type="number"
+                                min={0}
+                                step="any"
+                                value={minValue}
+                                aria-label={`Stok minimum ${item.nama}`}
+                                onChange={(e) =>
+                                  setMinDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))
+                                }
+                                onBlur={() => handleInlineMinBlur(item)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') e.currentTarget.blur();
+                                }}
+                                className="font-mono-num h-8 w-20 rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-2.5 text-right text-xs font-semibold text-[#13222b] outline-none focus:border-[#2eb86b] focus:bg-white"
+                              />
+                            )}
+                          </td>
 
-      {/* BOTTOM FOOTER */}
-      <div className="no-print flex flex-wrap items-center justify-between gap-2 border-t border-[#e5e5df] bg-[#fafaf8] px-5 py-2 text-xs md:px-6">
-        <p className="text-[#7c8580]">
-          Item yang diarsipkan tidak tampil di Stok Awal &amp; Input Harian, tetapi seluruh histori
-          tetap terjaga di Tabel Bulanan.
-        </p>
-        <div className="font-mono-num text-[#565e59] whitespace-nowrap">
-          <strong className="font-semibold text-[#141816]">{counts.aktif}</strong> aktif ·{' '}
-          <strong className="font-semibold text-[#141816]">{counts.arsip}</strong> arsip ·{' '}
-          <span className="font-sans text-[#15803d]">{sync.text}</span>
+                          <td className="px-3 py-3 whitespace-nowrap">
+                            <span
+                              className={`inline-flex rounded-lg px-2.5 py-1 text-[11px] font-bold ${
+                                item.aktif
+                                  ? 'bg-[#e6f7ee] text-[#15803d]'
+                                  : 'bg-[#f1f5f9] text-[#64748b]'
+                              }`}
+                            >
+                              {item.aktif ? 'Aktif' : 'Arsip'}
+                            </span>
+                          </td>
+
+                          {!isViewer && (
+                            <td className="px-5 py-3 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(item)}
+                                  className="inline-flex h-8 items-center gap-1 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
+                                >
+                                  <Edit3 className="h-3 w-3" />
+                                  <span>Edit</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleActive(item)}
+                                  className={`inline-flex h-8 items-center gap-1 rounded-xl px-3 text-xs font-semibold transition cursor-pointer ${
+                                    item.aktif
+                                      ? 'bg-[#f3f7f5] text-[#475569] hover:bg-[#e1ebe7] hover:text-[#13222b]'
+                                      : 'bg-[#e6f7ee] text-[#15803d] hover:bg-[#d1f2e0]'
+                                  }`}
+                                >
+                                  {item.aktif ? (
+                                    <>
+                                      <Archive className="h-3 w-3" />
+                                      <span>Arsipkan</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <RotateCcw className="h-3 w-3" />
+                                      <span>Aktifkan</span>
+                                    </>
+                                  )}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDeleteModal(item)}
+                                  aria-label={`Hapus ${item.nama}`}
+                                  title={
+                                    stats?.hasHistory
+                                      ? 'Memiliki histori transaksi — dilindungi dari penghapusan permanen'
+                                      : 'Hapus item permanen'
+                                  }
+                                  className={`inline-flex h-8 w-8 items-center justify-center rounded-xl transition cursor-pointer ${
+                                    stats?.hasHistory
+                                      ? 'bg-[#f3f7f5] text-[#94a3b8] hover:text-[#475569]'
+                                      : 'bg-[#fee2e2] text-[#b91c1c] hover:bg-[#fecaca]'
+                                  }`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </section>
         </div>
       </div>
 
       {/* MODAL: EDIT ITEM */}
       {editTarget && (
         <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#111614]/45 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
           onClick={(e) => {
             if (e.target === e.currentTarget) setEditTarget(null);
           }}
         >
-          <div className="w-full max-w-[460px] overflow-hidden rounded-xl border border-[#e5e5df] bg-white shadow-[0_24px_60px_rgba(17,22,20,0.18)]">
-            <div className="flex items-start justify-between border-b border-[#e5e5df] px-5 py-4">
+          <div className="w-full max-w-[460px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+            <div className="flex items-start justify-between border-b border-[#edf2f0] px-6 py-4">
               <div>
-                <h3 className="font-display text-base font-semibold text-[#141816]">
+                <h3 className="font-display text-base font-bold text-[#13222b]">
                   Edit Master Item
                 </h3>
-                <p className="font-mono-num mt-0.5 text-xs text-[#7c8580]">
+                <p className="font-mono-num mt-0.5 text-xs text-[#64748b]">
                   ID: {editTarget.id} · histori transaksi tetap terhubung
                 </p>
               </div>
@@ -662,23 +682,23 @@ export const MasterItemPage: React.FC = () => {
                 type="button"
                 onClick={() => setEditTarget(null)}
                 aria-label="Tutup modal"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-[#7c8580] hover:bg-[#f3f3ee] hover:text-[#141816] cursor-pointer"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <form onSubmit={handleSubmitEdit}>
-              <div className="space-y-3.5 px-5 py-4">
+              <div className="space-y-3.5 px-6 py-5">
                 {editError && (
-                  <div className="rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs font-medium text-[#b91c1c]">
+                  <div className="rounded-xl bg-[#fee2e2] px-3.5 py-2.5 text-xs font-semibold text-[#b91c1c]">
                     {editError}
                   </div>
                 )}
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-[#141816]">
-                    Nama Item <span className="text-[#b91c1c]">*</span>
+                  <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
+                    Nama Item <span className="text-[#ef4444]">*</span>
                   </label>
                   <input
                     type="text"
@@ -686,22 +706,22 @@ export const MasterItemPage: React.FC = () => {
                     autoFocus
                     value={editNama}
                     onChange={(e) => setEditNama(e.target.value)}
-                    className="h-9.5 w-full rounded-md border border-[#e5e5df] px-3 text-sm text-[#141816] focus:border-[#14533c] focus:outline-none"
+                    className="h-9.5 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3.5 text-sm text-[#13222b] outline-none focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
                   />
-                  <p className="mt-1 text-[11px] text-[#7c8580]">
+                  <p className="mt-1 text-[11px] text-[#64748b]">
                     Mengubah nama tidak memutus histori karena seluruh transaksi menggunakan ID{' '}
-                    <span className="font-mono-num font-medium text-[#141816]">{editTarget.id}</span>.
+                    <span className="font-mono-num font-semibold text-[#13222b]">{editTarget.id}</span>.
                   </p>
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-[#141816]">Kategori</label>
+                  <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">Kategori</label>
                   <input
                     type="text"
                     list="edit-kat-list"
                     value={editKat}
                     onChange={(e) => setEditKat(e.target.value)}
-                    className="h-9.5 w-full rounded-md border border-[#e5e5df] px-3 text-sm text-[#141816] focus:border-[#14533c] focus:outline-none"
+                    className="h-9.5 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3.5 text-sm text-[#13222b] outline-none focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
                   />
                   <datalist id="edit-kat-list">
                     {categories.map((k) => (
@@ -712,11 +732,11 @@ export const MasterItemPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-[#141816]">Satuan</label>
+                    <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">Satuan</label>
                     <select
                       value={editSat}
                       onChange={(e) => setEditSat(e.target.value)}
-                      className="h-9.5 w-full rounded-md border border-[#e5e5df] bg-white px-3 text-sm text-[#141816] focus:border-[#14533c] focus:outline-none"
+                      className="h-9.5 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3 text-sm text-[#13222b] outline-none focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
                     >
                       {satuanList.map((s) => (
                         <option key={s} value={s}>
@@ -730,7 +750,7 @@ export const MasterItemPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-[#141816]">
+                    <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
                       Stok Minimum
                     </label>
                     <input
@@ -739,23 +759,23 @@ export const MasterItemPage: React.FC = () => {
                       step="any"
                       value={editMin}
                       onChange={(e) => setEditMin(e.target.value)}
-                      className="font-mono-num h-9.5 w-full rounded-md border border-[#e5e5df] px-3 text-sm font-medium text-[#141816] focus:border-[#14533c] focus:outline-none"
+                      className="font-mono-num h-9.5 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3.5 text-sm font-semibold text-[#13222b] outline-none focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 border-t border-[#e5e5df] bg-[#fafaf8] px-5 py-3">
+              <div className="flex items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-6 py-3.5">
                 <button
                   type="button"
                   onClick={() => setEditTarget(null)}
-                  className="h-8.5 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#565e59] hover:bg-[#f3f3ee] cursor-pointer"
+                  className="h-9 rounded-xl bg-[#eef3f1] px-4 text-xs font-semibold text-[#13222b] hover:bg-[#e1ebe7] cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex h-8.5 items-center gap-1.5 rounded-md bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white hover:bg-[#259f5b] cursor-pointer"
                 >
                   <Check className="h-3.5 w-3.5" />
                   <span>Simpan Perubahan</span>
@@ -769,58 +789,58 @@ export const MasterItemPage: React.FC = () => {
       {/* MODAL: HAPUS AMAN */}
       {deleteTarget && (
         <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#111614]/45 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
           onClick={(e) => {
             if (e.target === e.currentTarget) setDeleteTarget(null);
           }}
         >
-          <div className="w-full max-w-[440px] overflow-hidden rounded-xl border border-[#e5e5df] bg-white shadow-[0_24px_60px_rgba(17,22,20,0.18)]">
-            <div className="border-b border-[#e5e5df] px-5 py-4">
-              <h3 className="font-display text-base font-semibold text-[#141816]">
+          <div className="w-full max-w-[440px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+            <div className="border-b border-[#edf2f0] px-6 py-4">
+              <h3 className="font-display text-base font-bold text-[#13222b]">
                 {deleteTarget.stats.hasHistory
                   ? 'Item Memiliki Histori Transaksi'
                   : 'Hapus Item Permanen'}
               </h3>
-              <p className="font-mono-num mt-0.5 text-xs text-[#7c8580]">
+              <p className="font-mono-num mt-0.5 text-xs text-[#64748b]">
                 {deleteTarget.item.nama} · {deleteTarget.item.id}
               </p>
             </div>
 
-            <div className="px-5 py-4">
+            <div className="px-6 py-5">
               {deleteTarget.stats.hasHistory ? (
-                <div className="space-y-2.5 text-[13px] leading-relaxed text-[#565e59]">
+                <div className="space-y-2.5 text-[13px] leading-relaxed text-[#475569]">
                   <p>
-                    Item <strong className="text-[#141816]">{deleteTarget.item.nama}</strong> tidak
+                    Item <strong className="text-[#13222b]">{deleteTarget.item.nama}</strong> tidak
                     dapat dihapus permanen karena masih terhubung dengan{' '}
-                    <strong className="font-mono-num text-[#141816]">
+                    <strong className="font-mono-num text-[#13222b]">
                       {deleteTarget.stats.totalEntries}
                     </strong>{' '}
                     catatan transaksi pada{' '}
-                    <strong className="font-mono-num text-[#141816]">
+                    <strong className="font-mono-num text-[#13222b]">
                       {deleteTarget.stats.monthsCount}
                     </strong>{' '}
                     bulan ({deleteTarget.stats.awalCount} stok awal, {deleteTarget.stats.datangCount}{' '}
                     barang datang, {deleteTarget.stats.closingCount} closing).
                   </p>
-                  <p className="rounded-lg border border-[#e5e5df] bg-[#fafaf8] px-3 py-2 text-xs text-[#565e59]">
-                    Gunakan <strong className="text-[#141816]">Arsipkan Item</strong> agar item
+                  <p className="rounded-xl bg-[#f3f7f5] px-3.5 py-2.5 text-xs text-[#475569]">
+                    Gunakan <strong className="text-[#13222b]">Arsipkan Item</strong> agar item
                     tidak muncul pada input baru, sementara histori Tabel Bulanan tetap akurat.
                   </p>
                 </div>
               ) : (
-                <p className="text-[13px] leading-relaxed text-[#565e59]">
-                  Item <strong className="text-[#141816]">{deleteTarget.item.nama}</strong> belum
+                <p className="text-[13px] leading-relaxed text-[#475569]">
+                  Item <strong className="text-[#13222b]">{deleteTarget.item.nama}</strong> belum
                   memiliki histori transaksi di bulan manapun. Hapus item ini secara permanen dari
                   Master Item?
                 </p>
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-[#e5e5df] bg-[#fafaf8] px-5 py-3">
+            <div className="flex items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-6 py-3.5">
               <button
                 type="button"
                 onClick={() => setDeleteTarget(null)}
-                className="h-8.5 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#565e59] hover:bg-[#f3f3ee] cursor-pointer"
+                className="h-9 rounded-xl bg-[#eef3f1] px-4 text-xs font-semibold text-[#13222b] hover:bg-[#e1ebe7] cursor-pointer"
               >
                 Batal
               </button>
@@ -829,7 +849,7 @@ export const MasterItemPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleArchiveFromDeleteModal}
-                    className="inline-flex h-8.5 items-center gap-1.5 rounded-md bg-[#b45309] px-4 text-xs font-medium text-white hover:bg-[#92400e] cursor-pointer"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#f59e0b] px-4 text-xs font-semibold text-white hover:bg-[#d97706] cursor-pointer"
                   >
                     <Archive className="h-3.5 w-3.5" />
                     <span>Arsipkan Item</span>
@@ -839,7 +859,7 @@ export const MasterItemPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleConfirmDelete}
-                  className="inline-flex h-8.5 items-center gap-1.5 rounded-md bg-[#b91c1c] px-4 text-xs font-medium text-white hover:bg-[#991b1b] cursor-pointer"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#ef4444] px-4 text-xs font-semibold text-white hover:bg-[#dc2626] cursor-pointer"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   <span>Ya, Hapus Permanen</span>

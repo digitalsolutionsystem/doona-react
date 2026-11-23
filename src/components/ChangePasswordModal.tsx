@@ -40,18 +40,18 @@ export const ChangePasswordModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-[999] flex items-center justify-center bg-[#111614]/45 p-5 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-5 backdrop-blur-[2px]"
       onClick={(e) => {
         if (e.target === e.currentTarget) handleClose();
       }}
     >
-      <div className="w-full max-w-[420px] overflow-hidden rounded-xl border border-[#e5e5df] bg-white shadow-[0_20px_50px_rgba(17,22,20,0.16)]">
-        <div className="flex items-start justify-between border-b border-[#e5e5df] px-6 py-4">
+      <div className="w-full max-w-[420px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+        <div className="flex items-start justify-between border-b border-[#edf2f0] px-6 py-4">
           <div>
-            <h3 className="font-display text-base font-semibold text-[#141816]">
+            <h3 className="font-display text-base font-bold text-[#13222b]">
               Ganti Password Akses
             </h3>
-            <p className="mt-0.5 text-xs text-[#565e59]">
+            <p className="mt-0.5 text-xs text-[#64748b]">
               Perbarui kata sandi untuk masuk aplikasi
             </p>
           </div>
@@ -59,7 +59,7 @@ export const ChangePasswordModal: React.FC = () => {
             type="button"
             onClick={handleClose}
             aria-label="Tutup"
-            className="flex h-8 w-8 items-center justify-center rounded-md text-[#7c8580] transition hover:bg-[#f3f3ee] hover:text-[#141816] cursor-pointer"
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -68,7 +68,7 @@ export const ChangePasswordModal: React.FC = () => {
         <form onSubmit={handleSubmit}>
           <div className="space-y-3.5 px-6 py-5">
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-[#141816]">
+              <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
                 Password Saat Ini
               </label>
               <input
@@ -77,11 +77,11 @@ export const ChangePasswordModal: React.FC = () => {
                 onChange={(e) => setCurr(e.target.value)}
                 placeholder="Masukkan password lama"
                 required
-                className="h-9.5 w-full rounded-lg border border-[#e5e5df] bg-[#fafaf8] px-3 text-sm text-[#141816] outline-none transition focus:border-[#14533c] focus:bg-white focus:ring-2 focus:ring-[#14533c]/15"
+                className="h-9.5 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3.5 text-sm text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-[#141816]">
+              <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
                 Password Baru
               </label>
               <input
@@ -90,11 +90,11 @@ export const ChangePasswordModal: React.FC = () => {
                 onChange={(e) => setNextPwd(e.target.value)}
                 placeholder="Minimal 3 karakter"
                 required
-                className="h-9.5 w-full rounded-lg border border-[#e5e5df] bg-[#fafaf8] px-3 text-sm text-[#141816] outline-none transition focus:border-[#14533c] focus:bg-white focus:ring-2 focus:ring-[#14533c]/15"
+                className="h-9.5 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3.5 text-sm text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-[#141816]">
+              <label className="mb-1.5 block text-xs font-semibold text-[#13222b]">
                 Konfirmasi Password Baru
               </label>
               <input
@@ -103,16 +103,16 @@ export const ChangePasswordModal: React.FC = () => {
                 onChange={(e) => setConf(e.target.value)}
                 placeholder="Ulangi password baru"
                 required
-                className="h-9.5 w-full rounded-lg border border-[#e5e5df] bg-[#fafaf8] px-3 text-sm text-[#141816] outline-none transition focus:border-[#14533c] focus:bg-white focus:ring-2 focus:ring-[#14533c]/15"
+                className="h-9.5 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3.5 text-sm text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
               />
             </div>
 
             {msg && (
               <div
-                className={`rounded-lg border px-3 py-2 text-xs font-medium ${
+                className={`rounded-xl px-3.5 py-2.5 text-xs font-semibold ${
                   msg.type === 'ok'
-                    ? 'border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]'
-                    : 'border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]'
+                    ? 'bg-[#e6f7ee] text-[#15803d]'
+                    : 'bg-[#fee2e2] text-[#b91c1c]'
                 }`}
               >
                 {msg.text}
@@ -120,18 +120,18 @@ export const ChangePasswordModal: React.FC = () => {
             )}
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-[#e5e5df] bg-[#fafaf8] px-6 py-3">
+          <div className="flex justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-6 py-3.5">
             <button
               type="button"
               onClick={handleClose}
-              className="h-8.5 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#141816] transition hover:bg-[#f3f3ee] cursor-pointer"
+              className="h-9 rounded-xl bg-[#eef3f1] px-4 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="h-8.5 rounded-md bg-[#14533c] px-4 text-xs font-medium text-white transition hover:bg-[#0f3f2d] disabled:opacity-60 cursor-pointer"
+              className="h-9 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] disabled:opacity-60 cursor-pointer"
             >
               {saving ? 'Menyimpan…' : 'Simpan Password'}
             </button>

@@ -5,7 +5,6 @@ import {
   formatOmsetShort,
   formatSignedRp,
   getOmsetChartData,
-  OMSET_CHART_METRICS,
   type OmsetChartMetricKey,
 } from '../domain/omsetCalculations';
 import type { AppData } from '../types/app';
@@ -13,10 +12,11 @@ import type { AppData } from '../types/app';
 interface OmsetChartPanelProps {
   state: AppData;
   ym: string;
+  metricKey: OmsetChartMetricKey;
   onSelectDay: (d: number) => void;
 }
 
-const METRIC_KEYS: OmsetChartMetricKey[] = [
+export const OMSET_CHART_METRIC_KEYS: OmsetChartMetricKey[] = [
   'omset',
   'nota',
   'keluar',
@@ -26,15 +26,15 @@ const METRIC_KEYS: OmsetChartMetricKey[] = [
 ];
 
 const SERIES_COLOR_MAP: Record<string, string> = {
-  tl: '#14533c',
-  qr: '#365a7d',
-  tn: '#14533c',
-  qn: '#365a7d',
-  kx: '#b45309',
-  bx: '#b91c1c',
-  gaji: '#4b5550',
-  selT: '#b45309',
-  selQ: '#b91c1c',
+  tl: '#2eb86b',
+  qr: '#0d2530',
+  tn: '#2eb86b',
+  qn: '#0d2530',
+  kx: '#f59e0b',
+  bx: '#ef4444',
+  gaji: '#64748b',
+  selT: '#f59e0b',
+  selQ: '#ef4444',
 };
 
 function getSeriesColor(seriesKey: string, fallback: string): string {
@@ -52,9 +52,9 @@ function niceStep(rangeDiv: number): number {
 export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
   state,
   ym,
+  metricKey,
   onSelectDay,
 }) => {
-  const [metricKey, setMetricKey] = useState<OmsetChartMetricKey>('omset');
   const [hoveredDay, setHoveredDay] = useState<number | null>(null);
 
   const chart = useMemo(() => getOmsetChartData(state, ym, metricKey), [state, ym, metricKey]);
@@ -64,10 +64,10 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
   const div = Boolean(chart.metric.diverging);
 
   const W = 960;
-  const H = 340;
+  const H = 368;
   const L = 66;
   const R = 16;
-  const T = 30;
+  const T = 54;
   const B = 30;
   const pw = W - L - R;
   const ph = H - T - B;
@@ -94,66 +94,40 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
 
   const cvToneText =
     chart.cv < 15
-      ? 'text-[#14533c]'
+      ? 'text-[#15803d]'
       : chart.cv < 35
         ? 'text-[#b45309]'
-        : 'text-[#b91c1c]';
+        : 'text-[#dc2626]';
 
   return (
     <div className="space-y-4">
-      {/* Metric selector */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-0.5 rounded-lg border border-[#e5e5df] bg-[#f1f1ec] p-0.5">
-          {METRIC_KEYS.map((k) => {
-            const active = k === metricKey;
-            return (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setMetricKey(k)}
-                className={`h-8 rounded-md px-3 text-xs font-medium whitespace-nowrap shrink-0 transition cursor-pointer ${
-                  active
-                    ? 'bg-[#14533c] text-white'
-                    : 'text-[#565e59] hover:bg-white hover:text-[#141816]'
-                }`}
-              >
-                {OMSET_CHART_METRICS[k].label}
-              </button>
-            );
-          })}
-        </div>
-        <span className="text-xs text-[#7c8580]">
-          {chart.metric.label} · {monthName} {yearNum}
-        </span>
-      </div>
-
       {chart.validCount === 0 ? (
-        <div className="rounded-xl border border-[#e5e5df] bg-white p-10 text-center text-sm text-[#7c8580]">
+        <div className="rounded-2xl bg-white p-10 text-center text-sm text-[#64748b] shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
           Belum ada data {chart.metric.label.toLowerCase()} pada {monthName} {yearNum}.
         </div>
       ) : (
         <>
-          {/* Unified Hairline-Divided Analytics KPI Ledger Strip */}
-          <div className="overflow-hidden rounded-xl border border-[#e5e5df] bg-white">
-            <div className="grid grid-cols-2 divide-x divide-y divide-[#efefea] sm:grid-cols-3 lg:grid-cols-6 lg:divide-y-0">
+          {/* Floating White Analytics KPI Strip */}
+          <div className="overflow-hidden rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
+            <div className="grid grid-cols-2 divide-x divide-y divide-[#edf2f0] sm:grid-cols-3 lg:grid-cols-6 lg:divide-y-0">
               {div ? (
                 <>
                   <div className="px-4 py-3.5">
-                    <div className="text-[11.5px] font-medium text-[#7c8580]">Rata-rata / hari</div>
-                    <div className="font-mono-num mt-1 text-[15px] font-semibold text-[#141816]">
+                    <div className="text-[11.5px] font-semibold text-[#64748b]">Rata-rata / hari</div>
+                    <div className="font-mono-num mt-1 text-[15px] font-bold text-[#13222b]">
                       {formatSignedRp(Math.round(chart.avg))}
                     </div>
                   </div>
                   <div className="px-4 py-3.5">
-                    <div className="text-[11.5px] font-medium text-[#7c8580]">
+                    <div className="text-[11.5px] font-semibold text-[#64748b]">
                       Terbesar +
                       {chart.maxDay && (chart.maxDay.tot || 0) > 0 ? ` · tgl ${chart.maxDay.d}` : ''}
                     </div>
                     <div
-                      className={`font-mono-num mt-1 text-[15px] font-semibold ${
+                      className={`font-mono-num mt-1 text-[15px] font-bold ${
                         chart.maxDay && (chart.maxDay.tot || 0) > 0
                           ? 'text-[#b45309]'
-                          : 'text-[#14533c]'
+                          : 'text-[#15803d]'
                       }`}
                     >
                       {chart.maxDay && (chart.maxDay.tot || 0) > 0
@@ -162,15 +136,15 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                     </div>
                   </div>
                   <div className="px-4 py-3.5">
-                    <div className="text-[11.5px] font-medium text-[#7c8580]">
+                    <div className="text-[11.5px] font-semibold text-[#64748b]">
                       Terbesar −
                       {chart.minDay && (chart.minDay.tot || 0) < 0 ? ` · tgl ${chart.minDay.d}` : ''}
                     </div>
                     <div
-                      className={`font-mono-num mt-1 text-[15px] font-semibold ${
+                      className={`font-mono-num mt-1 text-[15px] font-bold ${
                         chart.minDay && (chart.minDay.tot || 0) < 0
-                          ? 'text-[#b91c1c]'
-                          : 'text-[#14533c]'
+                          ? 'text-[#dc2626]'
+                          : 'text-[#15803d]'
                       }`}
                     >
                       {chart.minDay && (chart.minDay.tot || 0) < 0
@@ -179,28 +153,28 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                     </div>
                   </div>
                   <div className="px-4 py-3.5">
-                    <div className="text-[11.5px] font-medium text-[#7c8580]">Hari ada selisih</div>
+                    <div className="text-[11.5px] font-semibold text-[#64748b]">Hari ada selisih</div>
                     <div
-                      className={`font-mono-num mt-1 text-[15px] font-semibold ${
-                        chart.nonZeroDiffDays > 0 ? 'text-[#b91c1c]' : 'text-[#14533c]'
+                      className={`font-mono-num mt-1 text-[15px] font-bold ${
+                        chart.nonZeroDiffDays > 0 ? 'text-[#dc2626]' : 'text-[#15803d]'
                       }`}
                     >
                       {chart.nonZeroDiffDays}{' '}
-                      <span className="text-xs font-normal text-[#7c8580]">
+                      <span className="text-xs font-medium text-[#64748b]">
                         / {chart.validCount} hari
                       </span>
                     </div>
                   </div>
-                  <div className="bg-[#fafaf8] px-4 py-3.5 sm:col-span-2">
-                    <div className="text-[11.5px] font-medium text-[#7c8580]">
+                  <div className="bg-[#f7faf9] px-4 py-3.5 sm:col-span-2">
+                    <div className="text-[11.5px] font-semibold text-[#64748b]">
                       Total selisih bulan
                     </div>
                     <div
-                      className={`font-mono-num mt-1 text-[15px] font-semibold ${
+                      className={`font-mono-num mt-1 text-[15px] font-bold ${
                         chart.sumTotal === 0
-                          ? 'text-[#14533c]'
+                          ? 'text-[#15803d]'
                           : chart.sumTotal < 0
-                            ? 'text-[#b91c1c]'
+                            ? 'text-[#dc2626]'
                             : 'text-[#b45309]'
                       }`}
                     >
@@ -210,47 +184,47 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                 </>
               ) : (
                 <>
-                  <div className="bg-[#f4faf7] px-4 py-3.5">
-                    <div className="text-[11.5px] font-medium text-[#14533c]">Rata-rata / hari</div>
-                    <div className="font-mono-num mt-1 text-[15px] font-semibold text-[#14533c]">
+                  <div className="bg-[#f2fbf6] px-4 py-3.5">
+                    <div className="text-[11.5px] font-semibold text-[#15803d]">Rata-rata / hari</div>
+                    <div className="font-mono-num mt-1 text-[15px] font-bold text-[#15803d]">
                       {formatRp(Math.round(chart.avg))}
                     </div>
                   </div>
                   <div className="px-4 py-3.5">
-                    <div className="text-[11.5px] font-medium text-[#7c8580]">
+                    <div className="text-[11.5px] font-semibold text-[#64748b]">
                       Tertinggi{chart.maxDay ? ` · tgl ${chart.maxDay.d}` : ''}
                     </div>
-                    <div className="font-mono-num mt-1 text-[15px] font-semibold text-[#141816]">
+                    <div className="font-mono-num mt-1 text-[15px] font-bold text-[#13222b]">
                       {chart.maxDay ? formatRp(chart.maxDay.tot || 0) : '–'}
                     </div>
                   </div>
                   <div className="px-4 py-3.5">
-                    <div className="text-[11.5px] font-medium text-[#7c8580]">
+                    <div className="text-[11.5px] font-semibold text-[#64748b]">
                       Terendah{chart.minDay ? ` · tgl ${chart.minDay.d}` : ''}
                     </div>
-                    <div className="font-mono-num mt-1 text-[15px] font-semibold text-[#b45309]">
+                    <div className="font-mono-num mt-1 text-[15px] font-bold text-[#b45309]">
                       {chart.minDay ? formatRp(chart.minDay.tot || 0) : '–'}
                     </div>
                   </div>
                   <div className="px-4 py-3.5">
-                    <div className="text-[11.5px] font-medium text-[#7c8580]">Fluktuasi</div>
-                    <div className={`font-mono-num mt-1 text-[15px] font-semibold ${cvToneText}`}>
+                    <div className="text-[11.5px] font-semibold text-[#64748b]">Fluktuasi</div>
+                    <div className={`font-mono-num mt-1 text-[15px] font-bold ${cvToneText}`}>
                       ±{chart.cv}%
                     </div>
                   </div>
                   <div className="px-4 py-3.5">
-                    <div className="text-[11.5px] font-medium text-[#7c8580]">
+                    <div className="text-[11.5px] font-semibold text-[#64748b]">
                       Rata-rata P1 (1–15)
                     </div>
-                    <div className="font-mono-num mt-1 text-[15px] font-semibold text-[#141816]">
+                    <div className="font-mono-num mt-1 text-[15px] font-bold text-[#13222b]">
                       {chart.hasP1 ? formatRp(Math.round(chart.avgP1)) : '–'}
                     </div>
                   </div>
                   <div className="px-4 py-3.5">
-                    <div className="text-[11.5px] font-medium text-[#7c8580]">
+                    <div className="text-[11.5px] font-semibold text-[#64748b]">
                       Rata-rata P2 (16–{chart.nd})
                     </div>
-                    <div className="font-mono-num mt-1 text-[15px] font-semibold text-[#141816]">
+                    <div className="font-mono-num mt-1 text-[15px] font-bold text-[#13222b]">
                       {chart.hasP2 ? formatRp(Math.round(chart.avgP2)) : '–'}
                     </div>
                   </div>
@@ -260,22 +234,22 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
           </div>
 
           {/* Interactive SVG Chart Card */}
-          <div className="rounded-xl border border-[#e5e5df] bg-white p-4 sm:p-5">
+          <div className="rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] sm:p-5">
             {/* Hover Inspector Line */}
-            <div className="mb-3 flex min-h-[24px] flex-wrap items-center justify-between gap-2 border-b border-[#efefea] pb-2.5 text-xs">
+            <div className="mb-3 flex min-h-[26px] flex-wrap items-center justify-between gap-2 border-b border-[#edf2f0] pb-2.5 text-xs">
               {hoveredPoint ? (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[#141816]">
-                  <strong className="font-semibold">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[#13222b]">
+                  <strong className="font-bold">
                     {DAY_NAMES[getDayOfWeek(ym, hoveredPoint.d)]}, {hoveredPoint.d} {monthName}
                   </strong>
                   {!hoveredPoint.has ? (
-                    <span className="text-[#7c8580]">Belum ada data</span>
+                    <span className="text-[#64748b]">Belum ada data</span>
                   ) : (
                     <>
                       {chart.metric.series.map((s) => (
-                        <span key={s.k} className="text-[#565e59]">
+                        <span key={s.k} className="text-[#475569]">
                           {s.l}:{' '}
-                          <strong className="font-mono-num font-semibold text-[#141816]">
+                          <strong className="font-mono-num font-bold text-[#13222b]">
                             {div
                               ? formatSignedRp(hoveredPoint.v[s.k])
                               : formatRp(hoveredPoint.v[s.k])}
@@ -283,7 +257,7 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                         </span>
                       ))}
                       {chart.metric.series.length > 1 && (
-                        <span className="font-semibold text-[#14533c]">
+                        <span className="font-bold text-[#15803d]">
                           Total:{' '}
                           <span className="font-mono-num">
                             {div
@@ -296,7 +270,7 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                   )}
                 </div>
               ) : (
-                <span className="text-[#7c8580]">
+                <span className="text-[#64748b]">
                   Arahkan kursor ke batang tanggal untuk melihat rincian, atau klik batang untuk
                   membuka tanggal di tab Kalender.
                 </span>
@@ -321,16 +295,16 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                         x2={W - R}
                         y1={yPos}
                         y2={yPos}
-                        stroke={isZero ? '#565e59' : '#efefea'}
-                        strokeWidth={isZero ? 1.25 : 1}
+                        stroke={isZero ? '#0d2530' : '#edf2f0'}
+                        strokeWidth={isZero ? 1.5 : 1.25}
                       />
                       <text
                         x={L - 8}
                         y={yPos + 4}
                         textAnchor="end"
-                        fontSize={10.5}
+                        fontSize={11}
                         fontWeight={600}
-                        fill="#565e59"
+                        fill="#64748b"
                         style={{ fontFamily: "'JetBrains Mono', monospace" }}
                       >
                         {formatOmsetShort(t)}
@@ -343,28 +317,29 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                 <line
                   x1={L + 15 * sx}
                   x2={L + 15 * sx}
-                  y1={T - 6}
+                  y1={28}
                   y2={T + ph}
-                  stroke="#c5c5bc"
+                  stroke="#cbd5e1"
+                  strokeWidth={1.5}
                   strokeDasharray="4 4"
                 />
                 <text
                   x={L + 7.5 * sx}
-                  y={T - 12}
+                  y={16}
                   textAnchor="middle"
-                  fontSize={11}
-                  fontWeight={600}
-                  fill="#7c8580"
+                  fontSize={11.5}
+                  fontWeight={700}
+                  fill="#475569"
                 >
                   Periode 1 (1–15)
                 </text>
                 <text
                   x={L + (15 + (chart.nd - 15) / 2) * sx}
-                  y={T - 12}
+                  y={16}
                   textAnchor="middle"
-                  fontSize={11}
-                  fontWeight={600}
-                  fill="#7c8580"
+                  fontSize={11.5}
+                  fontWeight={700}
+                  fill="#475569"
                 >
                   Periode 2 (16–{chart.nd})
                 </text>
@@ -381,11 +356,11 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                     barNodes = (
                       <rect
                         x={bx}
-                        y={sy(0) - 2}
+                        y={sy(0) - 2.5}
                         width={bw}
-                        height={2}
+                        height={2.5}
                         rx={1}
-                        fill="#dcdcd4"
+                        fill="#cbd5e1"
                       />
                     );
                   } else if (div) {
@@ -397,8 +372,8 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                         y={y1}
                         width={bw}
                         height={Math.max(2, y2 - y1)}
-                        rx={2.5}
-                        fill={x.tot >= 0 ? '#b45309' : '#b91c1c'}
+                        rx={3}
+                        fill={x.tot >= 0 ? '#f59e0b' : '#ef4444'}
                       />
                     );
                   } else {
@@ -416,6 +391,7 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                           y={ya}
                           width={bw}
                           height={Math.max(1.5, yb - ya)}
+                          rx={2}
                           fill={getSeriesColor(s.k, s.c)}
                         />
                       );
@@ -426,11 +402,11 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                         <rect
                           key="zero"
                           x={bx}
-                          y={sy(0) - 2}
+                          y={sy(0) - 2.5}
                           width={bw}
-                          height={2}
+                          height={2.5}
                           rx={1}
-                          fill="#c5c5bc"
+                          fill="#cbd5e1"
                         />
                       );
                     }
@@ -451,21 +427,21 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                           y={T - 4}
                           width={sx}
                           height={ph + 8}
-                          fill="#14533c"
-                          opacity={0.07}
+                          rx={4}
+                          fill="#e6f7ee"
                         />
                       )}
                       {barNodes}
                       {isPeak && x.tot !== null && (
                         <text
                           x={cx}
-                          y={x.tot >= 0 ? sy(x.tot) - 6 : sy(x.tot) + 14}
+                          y={x.tot >= 0 ? sy(x.tot) - 7 : sy(x.tot) + 14}
                           textAnchor="middle"
-                          fontSize={10.5}
+                          fontSize={11}
                           fontWeight={700}
-                          fill={chart.maxDay && x.d === chart.maxDay.d ? '#14533c' : '#b91c1c'}
+                          fill={chart.maxDay && x.d === chart.maxDay.d ? '#15803d' : '#dc2626'}
                           stroke="#ffffff"
-                          strokeWidth={3}
+                          strokeWidth={3.5}
                           paintOrder="stroke"
                           style={{ fontFamily: "'JetBrains Mono', monospace" }}
                         >
@@ -476,9 +452,9 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                         x={cx}
                         y={H - 10}
                         textAnchor="middle"
-                        fontSize={10.5}
-                        fontWeight={isSun ? 700 : 500}
-                        fill={isSun ? '#b91c1c' : '#565e59'}
+                        fontSize={11}
+                        fontWeight={isSun ? 700 : 600}
+                        fill={isSun ? '#dc2626' : '#64748b'}
                         style={{ fontFamily: "'JetBrains Mono', monospace" }}
                       >
                         {x.d}
@@ -504,19 +480,19 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                   x2={W - R}
                   y1={sy(chart.avg)}
                   y2={sy(chart.avg)}
-                  stroke="#141816"
-                  strokeWidth={1.5}
+                  stroke="#0d2530"
+                  strokeWidth={2}
                   strokeDasharray="6 4"
                 />
                 <text
                   x={W - R - 4}
                   y={sy(chart.avg) - 6}
                   textAnchor="end"
-                  fontSize={10.5}
+                  fontSize={11}
                   fontWeight={700}
-                  fill="#141816"
+                  fill="#0d2530"
                   stroke="#ffffff"
-                  strokeWidth={3}
+                  strokeWidth={3.5}
                   paintOrder="stroke"
                   style={{ fontFamily: "'JetBrains Mono', monospace" }}
                 >
@@ -527,15 +503,15 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
             </div>
 
             {/* Legend */}
-            <div className="mt-3 flex flex-wrap items-center gap-4 border-t border-[#efefea] pt-2.5 text-xs text-[#565e59]">
+            <div className="mt-3 flex flex-wrap items-center gap-4 border-t border-[#edf2f0] pt-3 text-xs font-semibold text-[#475569]">
               {div ? (
                 <>
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-xs bg-[#b45309]" />
+                    <span className="h-2.5 w-2.5 rounded-xs bg-[#f59e0b]" />
                     Selisih lebih (+)
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-xs bg-[#b91c1c]" />
+                    <span className="h-2.5 w-2.5 rounded-xs bg-[#ef4444]" />
                     Selisih kurang (−)
                   </span>
                 </>
@@ -551,11 +527,11 @@ export const OmsetChartPanel: React.FC<OmsetChartPanelProps> = ({
                 ))
               )}
               <span className="inline-flex items-center gap-1.5">
-                <span className="w-5 border-t-2 border-dashed border-[#141816]" />
+                <span className="w-5 border-t-2 border-dashed border-[#0d2530]" />
                 Rata-rata
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-[3px] w-3 bg-[#dcdcd4]" />
+                <span className="h-[3px] w-3 rounded-full bg-[#cbd5e1]" />
                 Belum ada data
               </span>
             </div>

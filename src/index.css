@@ -1,24 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  --sidebar-w: 236px;
-  --sidebar-cw: 68px;
-  --sidebar-bg: #111614;
-  --sidebar-border: #202824;
-  --sidebar-text: #96a09b;
-  --sidebar-hover: rgba(255, 255, 255, 0.06);
-  --accent: #14533c;
-  --accent-dark: #0f3f2d;
-  --accent-soft: #ecf5f1;
-  --bg: #f7f7f4;
+  --sidebar-w: 228px;
+  --sidebar-cw: 72px;
+  --sidebar-gap: 12px;
+  --sidebar-bg: #0d2530;
+  --sidebar-border: #193a49;
+  --sidebar-text: #d7e3e8;
+  --sidebar-hover: #153644;
+  --accent: #2eb86b;
+  --accent-dark: #14533c;
+  --accent-soft: #e6f7ee;
+  --bg: #eef3f1;
   --surface: #ffffff;
-  --surface-subtle: #f3f3ee;
-  --border: #e5e5df;
-  --border-subtle: #efefea;
-  --ink: #141816;
-  --ink-secondary: #565e59;
-  --muted: #7c8580;
-  --radius: 10px;
+  --surface-subtle: #f4f7f6;
+  --border: #cfd8d4;
+  --border-strong: #94a39e;
+  --border-subtle: #e2ebe7;
+  --ink: #13222b;
+  --ink-secondary: #334155;
+  --muted: #64748b;
+  --radius: 16px;
 }
 
 @layer base {
@@ -26,22 +28,41 @@
   *::before,
   *::after {
     box-sizing: border-box;
+    border-color: var(--border);
   }
 
   body {
     font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    font-weight: 500;
     background: var(--bg);
     color: var(--ink);
     min-height: 100vh;
-    overflow-x: hidden;
+    overflow-x: clip;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #64748b;
+    font-weight: 500;
+    opacity: 1;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid #2eb86b;
+    outline-offset: 1px;
   }
 }
 
 .font-display {
   font-family: 'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif;
   letter-spacing: -0.02em;
+  font-weight: 700;
 }
 
 .font-mono-num {
@@ -49,19 +70,21 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Full-bleed Architectural Clubhouse Sidebar */
+/* Floating Rounded Deep-Teal Sidebar (Sample Style) */
 .dg-sidebar {
   width: var(--sidebar-w);
   position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
+  top: var(--sidebar-gap);
+  left: var(--sidebar-gap);
+  bottom: var(--sidebar-gap);
   z-index: 100;
   background: var(--sidebar-bg);
-  border-right: 1px solid var(--sidebar-border);
+  border-radius: 20px;
+  box-shadow: 0 12px 32px rgba(13, 37, 48, 0.18);
   display: flex;
   flex-direction: column;
-  transition: width 0.22s cubic-bezier(0.22, 1, 0.36, 1), transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: visible;
+  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dg-sidebar.collapsed {
@@ -73,12 +96,14 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
+  border-radius: 20px;
   overflow: hidden;
 }
 
 .dg-nav-section {
   position: relative;
-  padding: 12px 0 20px;
+  padding: 10px 0 16px;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
@@ -90,33 +115,74 @@
 
 /* Main Workspace Canvas */
 .dg-content {
-  margin-left: var(--sidebar-w);
+  margin-left: calc(var(--sidebar-w) + var(--sidebar-gap));
   display: flex;
   flex-direction: column;
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
   background: var(--bg);
-  transition: margin-left 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: margin-left 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dg-content.sidebar-collapsed {
-  margin-left: var(--sidebar-cw);
+  margin-left: calc(var(--sidebar-cw) + var(--sidebar-gap));
 }
 
-/* Refined thin scrollbars */
+.dg-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.dg-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.dg-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  flex-shrink: 0;
+  background: rgba(238, 243, 241, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Striped emerald progress fill (Sample Finance Summary bar) */
+.dg-striped-bar {
+  background-color: #2eb86b;
+  background-image: repeating-linear-gradient(
+    -55deg,
+    rgba(255, 255, 255, 0.28) 0px,
+    rgba(255, 255, 255, 0.28) 4px,
+    transparent 4px,
+    transparent 9px
+  );
+}
+
+/* Crisp visible scrollbars */
 .dg-scroll::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 
 .dg-scroll::-webkit-scrollbar-thumb {
-  background: #d4d4cc;
+  background: #b5c4bf;
   border-radius: 999px;
 }
 
 .dg-scroll::-webkit-scrollbar-thumb:hover {
-  background: #b8b8ae;
+  background: #8da19b;
 }
 
 .dg-scroll::-webkit-scrollbar-track {
@@ -125,8 +191,16 @@
 
 @media (max-width: 900px) {
   .dg-sidebar {
-    width: var(--sidebar-w) !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    border-radius: 0;
+    width: 244px !important;
     transform: translateX(-100%);
+  }
+
+  .dg-sidebar-inner {
+    border-radius: 0;
   }
 
   .dg-sidebar.mobile-open {
@@ -140,6 +214,19 @@
     min-height: 100dvh;
     max-height: none;
     overflow: visible;
+  }
+
+  .dg-main,
+  .dg-page {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 767px) {
+  .dg-sticky-header {
+    top: 52px;
   }
 }
 
@@ -162,9 +249,12 @@
   }
 
   .dg-content main,
+  .dg-main,
+  .dg-page,
   .dg-print-report {
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
+    background: #ffffff !important;
   }
 }

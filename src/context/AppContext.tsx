@@ -1,8 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_SATUAN, normalizeAppData } from '../constants/defaults';
 import {
+  SHIFT_PRESETS,
   getActiveEmployees,
   getArchivedEmployees,
+  getCurrentTimeHHMM,
   getEmployees,
 } from '../domain/attendanceCalculations';
 import { formatDateKey, getDaysInMonth, getTodayParts, shiftDay, shiftMonth } from '../domain/dateUtils';
@@ -55,6 +57,7 @@ import type {
   AppData,
   AttendanceDraftMap,
   AttendanceRecord,
+  AttendanceShift,
   AttendanceStatus,
   DbConnectionMode,
   Employee,
@@ -72,6 +75,8 @@ export interface SaveEmployeeInput {
   id?: string;
   nama: string;
   foto?: string;
+  jabatan?: string;
+  shiftDefault?: AttendanceShift;
   gajiHarian: number;
   lemburPerPaket: number;
   siklusGaji: '14hari' | 'bulanan';
@@ -202,6 +207,15 @@ interface AppContextValue {
     empId: string,
     status: AttendanceStatus
   ) => void;
+  updateAttendanceDraft: (
+    targetYm: string,
+    targetDay: number,
+    empId: string,
+    patch: Partial<AttendanceRecord>
+  ) => void;
+  clockInEmployee: (targetYm: string, targetDay: number, empId: string) => void;
+  clockOutEmployee: (targetYm: string, targetDay: number, empId: string) => void;
+  resetAttendanceDraftDay: (targetYm: string, targetDay: number) => void;
   setAttendanceDraftLembur: (
     targetYm: string,
     targetDay: number,
@@ -214,7 +228,16 @@ interface AppContextValue {
     empId: string,
     delta: number
   ) => void;
-  setAllAttendanceHadir: (targetYm: string, targetDay: number) => void;
+  setAllAttendanceHadir: (
+    targetYm: string,
+    targetDay: number,
+    options?: { onlyUnrecorded?: boolean; withScheduledTimes?: boolean }
+  ) => void;
+  saveSingleAttendanceRow: (
+    targetYm: string,
+    targetDay: number,
+    empId: string
+  ) => Promise<{ ok: boolean; error?: string }>;
   saveAttendanceDay: (
     targetYm: string,
     targetDay: number
@@ -1188,9 +1211,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const existingDraft = draftMap[dk]?.[empId];
       if (existingDraft) return { ...existingDraft };
       const committed = stateRef.current.absensi?.[targetYm]?.[targetDay]?.[empId];
+      const emp = getEmployees(stateRef.current).find((e) => e.id === empId);
+      const defaultShift: AttendanceShift = committed?.shift || emp?.shiftDefault || 'Full';
       return {
         status: committed?.status || 'Hadir',
         lembur: Math.max(0, Number(committed?.lembur) || 0),
+        shift: defaultShift,
+        ...(committed?.checkIn ? { checkIn: committed.checkIn } : {}),
+        ...(committed?.checkOut ? { checkOut: committed.checkOut } : {}),
+        ...(committed?.catatan ? { catatan: committed.catatan } : {}),
+        ...(committed?.updatedAt ? { updatedAt: committed.updatedAt } : {}),
         ...(committed?.gajiHarian !== undefined ? { gajiHarian: committed.gajiHarian } : {}),
         ...(committed?.lemburPerPaket !== undefined
           ? { lemburPerPaket: committed.lemburPerPaket }
@@ -1206,11 +1236,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const dk = `${targetYm}|${targetDay}`;
       setAbsDraft((prev) => {
         const base = getEffectiveDraftRecord(prev, targetYm, targetDay, empId);
+        const shift: AttendanceShift = base.shift || 'Full';
+        const preset = SHIFT_PRESETS[shift];
+        const nextRec: AttendanceRecord = { ...base, status, shift };
+        if (status === 'Hadir') {
+          if (!nextRec.checkIn && preset?.start) {
+            nextRec.checkIn = preset.start;
+          }
+        } else {
+          delete nextRec.checkIn;
+          delete nextRec.checkOut;
+        }
         return {
           ...prev,
           [dk]: {
             ...(prev[dk] || {}),
-            [empId]: { ...base, status },
+            [empId]: nextRec,
           },
         };
       });
@@ -1222,6 +1263,121 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
     },
     [getEffectiveDraftRecord, isViewer]
+  );
+
+  const updateAttendanceDraft = useCallback(
+    (
+      targetYm: string,
+      targetDay: number,
+      empId: string,
+      patch: Partial<AttendanceRecord>
+    ) => {
+      if (isViewer) return;
+      const dk = `${targetYm}|${targetDay}`;
+      setAbsDraft((prev) => {
+        const base = getEffectiveDraftRecord(prev, targetYm, targetDay, empId);
+        const nextRec: AttendanceRecord = {
+          ...base,
+          ...patch,
+        };
+        if (patch.lembur !== undefined) {
+          nextRec.lembur = Math.max(0, Math.floor(Number(patch.lembur) || 0));
+        }
+        if (patch.checkIn === '') delete nextRec.checkIn;
+        if (patch.checkOut === '') delete nextRec.checkOut;
+        if (patch.catatan === '') delete nextRec.catatan;
+        return {
+          ...prev,
+          [dk]: {
+            ...(prev[dk] || {}),
+            [empId]: nextRec,
+          },
+        };
+      });
+      setAbsSaveError(null);
+      setSync((s) => ({
+        ...s,
+        text: 'Ada perubahan absensi belum disimpan',
+        isError: false,
+      }));
+    },
+    [getEffectiveDraftRecord, isViewer]
+  );
+
+  const clockInEmployee = useCallback(
+    (targetYm: string, targetDay: number, empId: string) => {
+      if (isViewer) return;
+      const nowTime = getCurrentTimeHHMM();
+      const dk = `${targetYm}|${targetDay}`;
+      setAbsDraft((prev) => {
+        const base = getEffectiveDraftRecord(prev, targetYm, targetDay, empId);
+        return {
+          ...prev,
+          [dk]: {
+            ...(prev[dk] || {}),
+            [empId]: {
+              ...base,
+              status: 'Hadir',
+              checkIn: nowTime,
+            },
+          },
+        };
+      });
+      setAbsSaveError(null);
+      setSync((s) => ({
+        ...s,
+        text: 'Ada perubahan absensi belum disimpan',
+        isError: false,
+      }));
+    },
+    [getEffectiveDraftRecord, isViewer]
+  );
+
+  const clockOutEmployee = useCallback(
+    (targetYm: string, targetDay: number, empId: string) => {
+      if (isViewer) return;
+      const nowTime = getCurrentTimeHHMM();
+      const dk = `${targetYm}|${targetDay}`;
+      setAbsDraft((prev) => {
+        const base = getEffectiveDraftRecord(prev, targetYm, targetDay, empId);
+        const shift: AttendanceShift = base.shift || 'Full';
+        const preset = SHIFT_PRESETS[shift];
+        return {
+          ...prev,
+          [dk]: {
+            ...(prev[dk] || {}),
+            [empId]: {
+              ...base,
+              status: 'Hadir',
+              checkIn: base.checkIn || preset?.start || nowTime,
+              checkOut: nowTime,
+            },
+          },
+        };
+      });
+      setAbsSaveError(null);
+      setSync((s) => ({
+        ...s,
+        text: 'Ada perubahan absensi belum disimpan',
+        isError: false,
+      }));
+    },
+    [getEffectiveDraftRecord, isViewer]
+  );
+
+  const resetAttendanceDraftDay = useCallback(
+    (targetYm: string, targetDay: number) => {
+      if (isViewer) return;
+      const dk = `${targetYm}|${targetDay}`;
+      setAbsDraft((prev) => {
+        if (!prev[dk]) return prev;
+        const copy = { ...prev };
+        delete copy[dk];
+        return copy;
+      });
+      setAbsSaveError(null);
+    },
+    [isViewer]
   );
 
   const setAttendanceDraftLembur = useCallback(
@@ -1275,16 +1431,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const setAllAttendanceHadir = useCallback(
-    (targetYm: string, targetDay: number) => {
+    (
+      targetYm: string,
+      targetDay: number,
+      options?: { onlyUnrecorded?: boolean; withScheduledTimes?: boolean }
+    ) => {
       if (isViewer) return;
       const activeEmps = getActiveEmployees(stateRef.current);
       if (activeEmps.length === 0) return;
       const dk = `${targetYm}|${targetDay}`;
+      const committedDay = stateRef.current.absensi?.[targetYm]?.[targetDay] || {};
+      const onlyUnrecorded = options?.onlyUnrecorded ?? false;
+      const withScheduledTimes = options?.withScheduledTimes ?? true;
+
       setAbsDraft((prev) => {
         const nextDayDraft: Record<string, AttendanceRecord> = { ...(prev[dk] || {}) };
         activeEmps.forEach((emp) => {
+          if (onlyUnrecorded && (committedDay[emp.id] || nextDayDraft[emp.id])) {
+            return;
+          }
           const base = getEffectiveDraftRecord(prev, targetYm, targetDay, emp.id);
-          nextDayDraft[emp.id] = { ...base, status: 'Hadir' };
+          const shift: AttendanceShift = base.shift || emp.shiftDefault || 'Full';
+          const preset = SHIFT_PRESETS[shift];
+          const nextRec: AttendanceRecord = {
+            ...base,
+            status: 'Hadir',
+            shift,
+          };
+          if (withScheduledTimes && preset?.start) {
+            nextRec.checkIn = base.checkIn || preset.start;
+            if (preset.end) {
+              nextRec.checkOut = base.checkOut || preset.end;
+            }
+          }
+          nextDayDraft[emp.id] = nextRec;
         });
         return { ...prev, [dk]: nextDayDraft };
       });
@@ -1296,6 +1476,121 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
     },
     [getEffectiveDraftRecord, isViewer]
+  );
+
+  const buildCommittedAttendanceRecord = (
+    emp: Employee,
+    committed: AttendanceRecord | undefined,
+    draftRec: AttendanceRecord
+  ): AttendanceRecord => {
+    const status: AttendanceStatus = draftRec.status;
+    const lembur = Math.max(0, Math.floor(Number(draftRec.lembur) || 0));
+    const gajiHarian =
+      committed?.gajiHarian !== undefined
+        ? committed.gajiHarian
+        : Number(emp.gajiHarian) || 0;
+    const lemburPerPaket =
+      committed?.lemburPerPaket !== undefined
+        ? committed.lemburPerPaket
+        : Number(emp.lemburPerPaket) || 0;
+    const shift: AttendanceShift = draftRec.shift || committed?.shift || emp.shiftDefault || 'Full';
+    const rec: AttendanceRecord = {
+      status,
+      lembur,
+      gajiHarian,
+      lemburPerPaket,
+      shift,
+      updatedAt: new Date().toISOString(),
+    };
+    if (status === 'Hadir') {
+      if (draftRec.checkIn) rec.checkIn = draftRec.checkIn;
+      if (draftRec.checkOut) rec.checkOut = draftRec.checkOut;
+    }
+    const cleanNote = (draftRec.catatan || '').trim();
+    if (cleanNote) rec.catatan = cleanNote;
+    return rec;
+  };
+
+  const saveSingleAttendanceRow = useCallback(
+    async (
+      targetYm: string,
+      targetDay: number,
+      empId: string
+    ): Promise<{ ok: boolean; error?: string }> => {
+      if (isViewer) {
+        return { ok: false, error: 'Akun viewer hanya dapat membaca data.' };
+      }
+      if (absSaving) {
+        return { ok: false, error: 'Penyimpanan absensi sedang berlangsung.' };
+      }
+
+      const current = stateRef.current;
+      const emp = getActiveEmployees(current).find((e) => e.id === empId);
+      if (!emp) {
+        return { ok: false, error: 'Karyawan tidak ditemukan.' };
+      }
+
+      const dk = `${targetYm}|${targetDay}`;
+      const draftDay = absDraftRef.current[dk] || {};
+      const existingMonth = current.absensi?.[targetYm] || {};
+      const existingDay = existingMonth[targetDay] || {};
+      const committed = existingDay[empId];
+      const draftRec = draftDay[empId] || committed;
+      if (!draftRec) {
+        return { ok: false, error: 'Pilih status atau lakukan Check-in terlebih dahulu.' };
+      }
+
+      const nextDayRecords: Record<string, AttendanceRecord> = {
+        ...existingDay,
+        [empId]: buildCommittedAttendanceRecord(emp, committed, draftRec),
+      };
+
+      const nextState: AppData = {
+        ...current,
+        absensi: {
+          ...(current.absensi || {}),
+          [targetYm]: {
+            ...existingMonth,
+            [targetDay]: nextDayRecords,
+          },
+        },
+      };
+
+      writeLocalCache(nextState);
+      stateRef.current = nextState;
+      setState(nextState);
+
+      setAbsDraft((prev) => {
+        if (!prev[dk]?.[empId]) return prev;
+        const copyDay = { ...prev[dk] };
+        delete copyDay[empId];
+        const copy = { ...prev };
+        if (Object.keys(copyDay).length === 0) {
+          delete copy[dk];
+        } else {
+          copy[dk] = copyDay;
+        }
+        return copy;
+      });
+
+      setAbsSaving(true);
+      setAbsSaveError(null);
+      const ok = await saveNow(nextState);
+      setAbsSaving(false);
+
+      if (ok) {
+        setAbsUnsent(false);
+        setAbsSaveError(null);
+        return { ok: true };
+      }
+
+      const msg =
+        'Absensi belum terkirim ke database. Data aman di perangkat ini; klik "Simpan absensi" lagi untuk mengirim ulang.';
+      setAbsUnsent(true);
+      setAbsSaveError(msg);
+      return { ok: false, error: msg };
+    },
+    [absSaving, isViewer, saveNow]
   );
 
   const saveAttendanceDay = useCallback(
@@ -1319,29 +1614,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Pertahankan seluruh histori karyawan nonaktif/arsip pada tanggal ini
       const nextDayRecords: Record<string, AttendanceRecord> = { ...existingDay };
+      let savedAny = false;
 
       activeEmps.forEach((emp) => {
         const committed = existingDay[emp.id];
         const draftRec = draftDay[emp.id];
-        const status: AttendanceStatus = draftRec?.status || committed?.status || 'Hadir';
-        const lembur = Math.max(0, Math.floor(Number(draftRec?.lembur ?? committed?.lembur) || 0));
-        // Snapshot tarif saat pertama kali disimpan agar perubahan tarif di masa depan tidak mengubah histori secara retroaktif
-        const gajiHarian =
-          committed?.gajiHarian !== undefined
-            ? committed.gajiHarian
-            : Number(emp.gajiHarian) || 0;
-        const lemburPerPaket =
-          committed?.lemburPerPaket !== undefined
-            ? committed.lemburPerPaket
-            : Number(emp.lemburPerPaket) || 0;
-
-        nextDayRecords[emp.id] = {
-          status,
-          lembur,
-          gajiHarian,
-          lemburPerPaket,
-        };
+        if (!draftRec && !committed) {
+          return;
+        }
+        const source = draftRec || committed!;
+        nextDayRecords[emp.id] = buildCommittedAttendanceRecord(emp, committed, source);
+        savedAny = true;
       });
+
+      if (!savedAny) {
+        return {
+          ok: false,
+          error:
+            'Belum ada karyawan yang dicatat kehadirannya. Klik Check-in atau "Semua Hadir" terlebih dahulu.',
+        };
+      }
 
       const nextState: AppData = {
         ...current,
@@ -1404,6 +1696,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const gajiHarian = Math.max(0, Math.round(Number(input.gajiHarian) || 0));
       const lemburPerPaket = Math.max(0, Math.round(Number(input.lemburPerPaket) || 0));
       const foto = (input.foto || '').trim();
+      const jabatan = (input.jabatan || '').trim();
+      const shiftDefault: AttendanceShift = input.shiftDefault || 'Full';
       const siklusGaji: '14hari' | 'bulanan' =
         input.siklusGaji === 'bulanan' ? 'bulanan' : '14hari';
 
@@ -1464,6 +1758,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...oldEmp,
               nama,
               foto,
+              ...(jabatan ? { jabatan } : { jabatan: undefined }),
+              shiftDefault,
               gajiHarian,
               lemburPerPaket,
               siklusGaji,
@@ -1474,6 +1770,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             id: 'k_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
             nama,
             foto,
+            ...(jabatan ? { jabatan } : {}),
+            shiftDefault,
             gajiHarian,
             lemburPerPaket,
             siklusGaji,
@@ -2298,9 +2596,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       closeOmsetPeriod,
       reopenOmsetPeriod,
       setAttendanceDraftStatus,
+      updateAttendanceDraft,
+      clockInEmployee,
+      clockOutEmployee,
+      resetAttendanceDraftDay,
       setAttendanceDraftLembur,
       adjustAttendanceDraftLembur,
       setAllAttendanceHadir,
+      saveSingleAttendanceRow,
       saveAttendanceDay,
       saveEmployee,
       toggleEmployeeActive,
@@ -2378,9 +2681,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       closeOmsetPeriod,
       reopenOmsetPeriod,
       setAttendanceDraftStatus,
+      updateAttendanceDraft,
+      clockInEmployee,
+      clockOutEmployee,
+      resetAttendanceDraftDay,
       setAttendanceDraftLembur,
       adjustAttendanceDraftLembur,
       setAllAttendanceHadir,
+      saveSingleAttendanceRow,
       saveAttendanceDay,
       saveEmployee,
       toggleEmployeeActive,

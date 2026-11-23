@@ -8,8 +8,6 @@ import {
   Download,
   Package,
   Save,
-  Search,
-  Table2,
   X,
 } from 'lucide-react';
 import { MONTH_NAMES } from '../constants/defaults';
@@ -35,7 +33,6 @@ export const StokAwalPage: React.FC = () => {
     ym,
     isViewer,
     hasUnsavedAwal,
-    sync,
     moveMonth,
     setStockCell,
     saveStokAwalNow,
@@ -43,7 +40,6 @@ export const StokAwalPage: React.FC = () => {
     navigateTo,
   } = useApp();
 
-  const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<StokAwalFilter>('all');
   const [editingDrafts, setEditingDrafts] = useState<Record<string, string>>({});
   const [invalidHint, setInvalidHint] = useState<{ itemId: string; text: string } | null>(null);
@@ -71,6 +67,12 @@ export const StokAwalPage: React.FC = () => {
   }, [ym]);
 
   useEffect(() => {
+    if (!summary.hasPrevMonthData && filterMode === 'diff_prev') {
+      setFilterMode('all');
+    }
+  }, [summary.hasPrevMonthData, filterMode]);
+
+  useEffect(() => {
     if (!feedback) return;
     const t = window.setTimeout(() => setFeedback(null), 4000);
     return () => window.clearTimeout(t);
@@ -83,20 +85,11 @@ export const StokAwalPage: React.FC = () => {
   }, [invalidHint]);
 
   const filteredGroups = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
     return summary.groupedItems
       .map(([cat, items]) => {
         const list = items.filter((item) => {
           const row = summary.rowsByItemId[item.id];
           if (!row) return false;
-          if (q) {
-            const matches =
-              item.nama.toLowerCase().includes(q) ||
-              item.kat.toLowerCase().includes(q) ||
-              item.id.toLowerCase().includes(q) ||
-              (item.sat || '').toLowerCase().includes(q);
-            if (!matches) return false;
-          }
           if (filterMode === 'filled' && !row.isFilled) return false;
           if (filterMode === 'empty' && row.isFilled) return false;
           if (filterMode === 'diff_prev' && !row.differsFromPrev) return false;
@@ -105,7 +98,7 @@ export const StokAwalPage: React.FC = () => {
         return [cat, list] as [string, typeof items];
       })
       .filter(([, list]) => list.length > 0);
-  }, [summary.groupedItems, summary.rowsByItemId, searchQuery, filterMode]);
+  }, [summary.groupedItems, summary.rowsByItemId, filterMode]);
 
   const orderedVisibleIds = useMemo(
     () => filteredGroups.flatMap(([, list]) => list.map((i) => i.id)),
@@ -113,7 +106,7 @@ export const StokAwalPage: React.FC = () => {
   );
 
   useEffect(() => {
-    if (isViewer || searchQuery || filterMode !== 'all' || orderedVisibleIds.length === 0) return;
+    if (isViewer || filterMode !== 'all' || orderedVisibleIds.length === 0) return;
     if (typeof window !== 'undefined' && window.matchMedia('(pointer:fine)').matches) {
       const firstEmptyId =
         orderedVisibleIds.find((id) => !summary.rowsByItemId[id]?.isFilled) ||
@@ -176,7 +169,7 @@ export const StokAwalPage: React.FC = () => {
     if (parsed.negative || cleanedChars.includes('-')) {
       setInvalidHint({
         itemId,
-        text: 'Stok awal tidak boleh bernilai negatif.',
+        text: 'Stok awal tidak boleh negatif.',
       });
       return;
     }
@@ -279,7 +272,7 @@ export const StokAwalPage: React.FC = () => {
     setFeedback({
       tone: res.savedToDb ? 'ok' : 'err',
       text: res.savedToDb
-        ? `${res.importedCount} item diambil dari closing terakhir ${prevMonthLabel} dan berhasil disimpan.`
+        ? `${res.importedCount} item diambil dari closing ${prevMonthLabel} dan disimpan.`
         : `${res.importedCount} item diambil ke cache lokal, namun gagal sinkron ke server. Klik Simpan untuk mengirim ulang.`,
     });
   };
@@ -300,66 +293,57 @@ export const StokAwalPage: React.FC = () => {
     void executeImportPrevMonth('all');
   };
 
-  const filterTabs: Array<{ id: StokAwalFilter; label: string; count: number }> = [
-    { id: 'all', label: 'Semua', count: summary.activeItems.length },
-    { id: 'empty', label: 'Belum diisi', count: summary.emptyCount },
-    { id: 'filled', label: 'Terisi', count: summary.filledCount },
-    { id: 'diff_prev', label: 'Beda bln lalu', count: summary.differsFromPrevCount },
-  ];
-
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white">
-      {/* TOP HEADER TOOLBAR */}
-      <header className="no-print flex flex-wrap items-center justify-between gap-3 border-b border-[#e5e5df] bg-white px-5 py-3.5 md:px-6">
-        <div className="flex flex-wrap items-center gap-4">
-          <div>
-            <h1 className="font-display text-lg font-semibold text-[#141816] whitespace-nowrap">
-              Stok Awal
-            </h1>
-            <p className="text-xs text-[#7c8580]">Saldo fisik awal periode (tanggal 1)</p>
-          </div>
+    <div className="dg-page">
+      {/* STICKY FLOATING WHITE TOP BAR */}
+      <div className="dg-sticky-header no-print px-4 pt-3 pb-1 md:px-6">
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] md:px-5">
+        <div className="flex items-center gap-3">
+          <h1 className="font-display text-[17px] font-bold text-[#13222b] whitespace-nowrap">
+            Stok Awal
+          </h1>
 
-          <div className="inline-flex items-center rounded-lg border border-[#e5e5df] bg-[#fafaf8] p-0.5">
+          <div className="inline-flex items-center rounded-xl bg-[#f3f7f5] p-0.5">
             <button
               type="button"
               onClick={() => moveMonth(-1)}
               aria-label="Bulan sebelumnya"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] transition hover:bg-white hover:text-[#141816] cursor-pointer"
+              className="flex h-7.5 w-7.5 items-center justify-center rounded-lg text-[#475569] transition hover:bg-white hover:text-[#13222b] cursor-pointer"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="min-w-[132px] px-2 text-center text-[13px] font-medium text-[#141816] whitespace-nowrap">
+            <span className="min-w-[120px] px-2 text-center text-[13px] font-bold text-[#13222b] whitespace-nowrap">
               {monthLabel}
             </span>
             <button
               type="button"
               onClick={() => moveMonth(1)}
               aria-label="Bulan berikutnya"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] transition hover:bg-white hover:text-[#141816] cursor-pointer"
+              className="flex h-7.5 w-7.5 items-center justify-center rounded-lg text-[#475569] transition hover:bg-white hover:text-[#13222b] cursor-pointer"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
+
+          <span className="font-mono-num hidden rounded-lg bg-[#e6f7ee] px-2.5 py-1 text-xs font-bold text-[#15803d] sm:inline whitespace-nowrap">
+            {summary.filledCount}/{summary.activeItems.length} terisi
+          </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="flex items-center gap-2.5 pr-1">
-            <div className="text-right">
-              <div className="font-mono-num text-[11.5px] font-medium text-[#565e59] whitespace-nowrap">
-                {summary.isComplete
-                  ? 'Lengkap'
-                  : `${summary.filledCount}/${summary.activeItems.length} terisi`}
-              </div>
-              <div className="mt-1 h-[4px] w-24 overflow-hidden rounded-full bg-[#efefea]">
-                <div
-                  className={`h-full transition-all duration-200 ${
-                    summary.isComplete ? 'bg-[#15803d]' : 'bg-[#14533c]'
-                  }`}
-                  style={{ width: `${summary.progressPct}%` }}
-                />
-              </div>
-            </div>
-          </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={filterMode}
+            onChange={(e) => setFilterMode(e.target.value as StokAwalFilter)}
+            aria-label="Filter status stok awal"
+            className="h-9 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] outline-none focus:ring-2 focus:ring-[#2eb86b] cursor-pointer"
+          >
+            <option value="all">Semua ({summary.activeItems.length})</option>
+            <option value="empty">Belum diisi ({summary.emptyCount})</option>
+            <option value="filled">Terisi ({summary.filledCount})</option>
+            {summary.hasPrevMonthData && (
+              <option value="diff_prev">Beda bln lalu ({summary.differsFromPrevCount})</option>
+            )}
+          </select>
 
           {!isViewer && (
             <>
@@ -368,20 +352,20 @@ export const StokAwalPage: React.FC = () => {
                 disabled={isImporting}
                 onClick={handleClickImportPrev}
                 title={`Ambil nilai dari closing terakhir ${prevMonthLabel} (${summary.prevAvailableCount} item tersedia)`}
-                className="inline-flex h-8.5 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] transition hover:bg-[#f3f3ee] whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3.5 text-xs font-semibold text-[#13222b] transition hover:bg-[#e4ece8] whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
               >
-                <Download className="h-3.5 w-3.5 text-[#14533c]" />
-                <span>{isImporting ? 'Mengambil…' : 'Ambil closing bulan lalu'}</span>
+                <Download className="h-3.5 w-3.5 text-[#2eb86b]" />
+                <span>{isImporting ? 'Mengambil…' : 'Ambil Bln Lalu'}</span>
               </button>
 
               <button
                 type="button"
                 disabled={isSaving}
                 onClick={() => void handleSave()}
-                className={`inline-flex h-8.5 items-center gap-1.5 rounded-md px-3.5 text-xs font-medium text-white transition whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50 ${
+                className={`inline-flex h-9 items-center gap-1.5 rounded-xl px-4 text-xs font-semibold text-white transition whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50 ${
                   hasUnsavedAwal
-                    ? 'bg-[#b45309] hover:bg-[#92400e]'
-                    : 'bg-[#14533c] hover:bg-[#0f3f2d]'
+                    ? 'bg-[#f59e0b] hover:bg-[#d97706]'
+                    : 'bg-[#2eb86b] hover:bg-[#259f5b]'
                 }`}
               >
                 <Save className="h-3.5 w-3.5" />
@@ -390,93 +374,18 @@ export const StokAwalPage: React.FC = () => {
             </>
           )}
         </div>
-      </header>
-
-      {/* SEARCH, FILTER & WORKFLOW LINKS BAR */}
-      <div className="no-print flex flex-wrap items-center justify-between gap-2.5 border-b border-[#e5e5df] bg-[#fafaf8] px-5 py-2 md:px-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-[#9aa39e]" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari item, kategori, satuan…"
-              aria-label="Cari item stok awal"
-              className="h-8 w-56 rounded-md border border-[#e5e5df] bg-white pr-7 pl-8 text-xs text-[#141816] placeholder:text-[#9aa39e] focus:border-[#14533c] focus:outline-none"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                aria-label="Bersihkan pencarian"
-                className="absolute top-1/2 right-2 -translate-y-1/2 text-[#9aa39e] hover:text-[#141816] cursor-pointer"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-
-          <div
-            className="flex items-center gap-0.5 rounded-md border border-[#e5e5df] bg-white p-0.5"
-            role="tablist"
-            aria-label="Filter status stok awal"
-          >
-            {filterTabs.map((tab) => {
-              const active = filterMode === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setFilterMode(tab.id)}
-                  className={`h-6.5 rounded px-2.5 text-xs font-medium transition whitespace-nowrap shrink-0 cursor-pointer ${
-                    active
-                      ? 'bg-[#141816] text-white'
-                      : 'text-[#565e59] hover:bg-[#f3f3ee] hover:text-[#141816]'
-                  }`}
-                >
-                  {tab.label}{' '}
-                  <span className="font-mono-num opacity-75">({tab.count})</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5 text-xs">
-          <button
-            type="button"
-            onClick={() => navigateTo('in', { ym, day: 1, inputTab: 'closing' })}
-            className="inline-flex items-center gap-1 font-medium text-[#14533c] hover:underline whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <span>Input Harian Tgl 1</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
-          <span aria-hidden="true" className="text-[#d4d4cc]">
-            ·
-          </span>
-          <button
-            type="button"
-            onClick={() => navigateTo('tb', { ym })}
-            className="inline-flex items-center gap-1 font-medium text-[#565e59] hover:text-[#141816] hover:underline whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <Table2 className="h-3.5 w-3.5" />
-            <span>Tabel Bulanan</span>
-          </button>
-        </div>
+        </header>
       </div>
 
       {/* FEEDBACK BANNER */}
       {feedback && (
         <div
-          className={`no-print flex items-center justify-between gap-2 border-b px-5 py-2 text-xs font-medium md:px-6 ${
+          className={`no-print mx-4 mt-3 flex items-center justify-between gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold shadow-sm md:mx-6 ${
             feedback.tone === 'err'
-              ? 'border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]'
+              ? 'bg-[#ef4444] text-white'
               : feedback.tone === 'info'
-                ? 'border-[#e5e5df] bg-[#fafaf8] text-[#141816]'
-                : 'border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]'
+                ? 'bg-white text-[#13222b]'
+                : 'bg-[#2eb86b] text-white'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -491,202 +400,164 @@ export const StokAwalPage: React.FC = () => {
             type="button"
             onClick={() => setFeedback(null)}
             aria-label="Tutup pesan"
-            className="opacity-70 hover:opacity-100 cursor-pointer"
+            className="cursor-pointer"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
 
-      {/* SCROLLABLE CATEGORY & ITEM TILE GRID */}
-      <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-5 py-5 md:px-6">
+      {/* FORM INPUT GRID FULL KIRI KANAN */}
+      <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
         {summary.activeItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#dcdcd4] py-16 text-center">
-            <Package className="mb-3 h-8 w-8 text-[#9aa39e]" />
-            <p className="font-display text-sm font-semibold text-[#141816]">
+          <div className="flex flex-col items-center justify-center rounded-2xl bg-white py-16 text-center shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
+            <Package className="mb-3 h-8 w-8 text-[#94a3b8]" />
+            <p className="font-display text-sm font-bold text-[#13222b]">
               Belum ada item aktif di Master Item.
             </p>
-            <p className="mt-1 text-xs text-[#565e59]">
+            <p className="mt-1 text-xs text-[#64748b]">
               Tambahkan atau aktifkan item terlebih dahulu agar dapat mencatat stok awal.
             </p>
             <button
               type="button"
               onClick={() => navigateTo('ms')}
-              className="mt-4 inline-flex h-8.5 items-center gap-1.5 rounded-md bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+              className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white hover:bg-[#259f5b] cursor-pointer"
             >
               <span>Buka Master Item</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
         ) : filteredGroups.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#dcdcd4] py-14 text-center">
-            <p className="text-sm font-medium text-[#141816]">
-              Tidak ada item yang cocok dengan filter saat ini.
+          <div className="flex flex-col items-center justify-center rounded-2xl bg-white py-14 text-center shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
+            <p className="text-sm font-semibold text-[#13222b]">
+              Tidak ada item pada filter ini.
             </p>
             <button
               type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setFilterMode('all');
-              }}
-              className="mt-3 h-8 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#565e59] hover:bg-[#f3f3ee] cursor-pointer"
+              onClick={() => setFilterMode('all')}
+              className="mt-3 h-8.5 rounded-xl bg-[#f3f7f5] px-4 text-xs font-semibold text-[#13222b] hover:bg-[#e4ece8] cursor-pointer"
             >
-              Reset filter
+              Tampilkan Semua
             </button>
           </div>
         ) : (
-          <div className="space-y-6">
-            {filteredGroups.map(([cat, items]) => {
-              const catFilled = items.filter((i) => summary.rowsByItemId[i.id]?.isFilled).length;
-              return (
-                <section key={cat}>
-                  <div className="mb-2.5 flex items-baseline justify-between border-b border-[#efefea] pb-1.5">
-                    <h2 className="font-display text-[13.5px] font-semibold text-[#141816]">
-                      {cat}
-                    </h2>
-                    <span className="font-mono-num text-xs text-[#7c8580]">
-                      {catFilled}/{items.length} terisi
-                    </span>
-                  </div>
+          <div className="grid w-full grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filteredGroups.flatMap(([cat, items]) =>
+              items.map((item) => {
+                const row = summary.rowsByItemId[item.id];
+                if (!row) return null;
 
-                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {items.map((item) => {
-                      const row = summary.rowsByItemId[item.id];
-                      if (!row) return null;
+                const cellKey = getCellKey(item.id);
+                const draftStr = editingDrafts[cellKey];
+                const displayValue =
+                  draftStr !== undefined
+                    ? draftStr
+                    : row.isFilled && row.awal !== undefined
+                      ? String(row.awal)
+                      : '';
+                const hasInvalid = invalidHint?.itemId === item.id;
 
-                      const cellKey = getCellKey(item.id);
-                      const draftStr = editingDrafts[cellKey];
-                      const displayValue =
-                        draftStr !== undefined
-                          ? draftStr
-                          : row.isFilled && row.awal !== undefined
-                            ? String(row.awal)
-                            : '';
-                      const hasInvalid = invalidHint?.itemId === item.id;
-
-                      return (
-                        <div
-                          key={item.id}
-                          className={`flex flex-col justify-between rounded-lg border p-3 transition-colors ${
-                            hasInvalid
-                              ? 'border-[#fca5a5] bg-[#fff5f5]'
-                              : row.isFilled
-                                ? 'border-[#14533c]/35 bg-[#f4faf7]'
-                                : 'border-[#e5e5df] bg-white hover:border-[#c8c8be]'
-                          }`}
+                return (
+                  <div
+                    key={item.id}
+                    className={`rounded-2xl px-4 py-3.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] transition ${
+                      hasInvalid
+                        ? 'bg-[#fff5f5] ring-2 ring-[#ef4444]'
+                        : row.isFilled
+                          ? 'bg-white ring-2 ring-[#2eb86b]'
+                          : 'bg-white'
+                    }`}
+                  >
+                    <div className="mb-2.5 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <label
+                          htmlFor={`stok-awal-${item.id}`}
+                          className="block truncate text-[14px] font-bold text-[#13222b] cursor-pointer"
+                          title={item.nama}
                         >
-                          <div className="mb-2 flex items-start justify-between gap-2">
-                            <span
-                              className="truncate text-[13px] font-medium text-[#141816]"
-                              title={item.nama}
-                            >
-                              {item.nama}
-                            </span>
-                            <span
-                              className={`shrink-0 text-[11px] font-medium whitespace-nowrap ${
-                                row.isFilled ? 'text-[#14533c]' : 'text-[#9aa39e]'
-                              }`}
-                            >
-                              {row.isFilled ? 'Terisi' : 'Kosong'}
-                            </span>
-                          </div>
+                          {item.nama}
+                        </label>
+                        <span className="block truncate text-[11px] font-medium text-[#64748b]">
+                          {cat}
+                        </span>
+                      </div>
 
-                          <div className="flex items-center gap-2">
-                            <input
-                              ref={(el) => {
-                                inputRefs.current[item.id] = el;
-                              }}
-                              type="text"
-                              inputMode="decimal"
-                              autoComplete="off"
-                              disabled={isViewer}
-                              placeholder="Belum diisi"
-                              value={displayValue}
-                              aria-label={`Stok awal ${item.nama}`}
-                              onChange={(e) => handleInputChange(item.id, e.target.value)}
-                              onBlur={() => handleInputBlur(item.id)}
-                              onFocus={(e) => e.currentTarget.select()}
-                              onKeyDown={(e) => handleKeyDown(e, item.id)}
-                              className={`font-mono-num h-9 min-w-0 flex-1 rounded-md border px-2.5 text-sm font-semibold text-[#141816] placeholder:font-sans placeholder:text-xs placeholder:font-normal placeholder:text-[#9aa39e] focus:outline-none disabled:bg-[#fafaf8] disabled:text-[#7c8580] ${
-                                hasInvalid
-                                  ? 'border-[#dc2626] bg-white focus:border-[#dc2626]'
-                                  : 'border-[#dcdcd4] bg-white focus:border-[#14533c]'
-                              }`}
-                            />
-                            <span className="shrink-0 text-xs text-[#7c8580]">
-                              {item.sat || 'pcs'}
-                            </span>
-                          </div>
+                      {hasVal(row.prevClosing) &&
+                        (!isViewer && row.canCopyPrev ? (
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            onClick={() => handleCopyPrevSingle(row)}
+                            title="Klik untuk samakan dengan bulan lalu"
+                            className="font-mono-num shrink-0 rounded-md bg-[#e6f7ee] px-2 py-0.5 text-[11px] font-bold text-[#15803d] transition hover:bg-[#d1f2e0] cursor-pointer"
+                          >
+                            Bln lalu {formatNum(row.prevClosing)}
+                          </button>
+                        ) : (
+                          <span className="font-mono-num shrink-0 text-[11px] font-medium text-[#64748b]">
+                            Bln lalu {formatNum(row.prevClosing)}
+                          </span>
+                        ))}
+                    </div>
 
-                          {hasInvalid ? (
-                            <div className="mt-2 flex items-center gap-1 text-[11px] font-medium text-[#b91c1c]">
-                              <AlertTriangle className="h-3 w-3 shrink-0" />
-                              <span>{invalidHint.text}</span>
-                            </div>
-                          ) : (
-                            <div className="mt-2 flex items-center justify-between gap-2 text-[11.5px]">
-                              <span className="text-[#7c8580]">
-                                Bulan lalu:{' '}
-                                <strong className="font-mono-num font-medium text-[#141816]">
-                                  {hasVal(row.prevClosing) ? formatNum(row.prevClosing) : '–'}
-                                </strong>
-                              </span>
-                              {!isViewer && row.canCopyPrev && (
-                                <button
-                                  type="button"
-                                  tabIndex={-1}
-                                  onClick={() => handleCopyPrevSingle(row)}
-                                  title={`Isi sama dengan closing terakhir ${prevMonthLabel} (${formatNum(row.prevClosing)})`}
-                                  className="rounded border border-[#e5e5df] bg-white px-2 py-0.5 text-[11px] font-medium text-[#14533c] transition hover:border-[#14533c] hover:bg-[#ecf5f1] whitespace-nowrap shrink-0 cursor-pointer"
-                                >
-                                  Sama
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    <div className="flex items-center gap-2">
+                      <input
+                        id={`stok-awal-${item.id}`}
+                        ref={(el) => {
+                          inputRefs.current[item.id] = el;
+                        }}
+                        type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        disabled={isViewer}
+                        placeholder="0"
+                        value={displayValue}
+                        onChange={(e) => handleInputChange(item.id, e.target.value)}
+                        onBlur={() => handleInputBlur(item.id)}
+                        onFocus={(e) => e.currentTarget.select()}
+                        onKeyDown={(e) => handleKeyDown(e, item.id)}
+                        className={`font-mono-num h-9.5 min-w-0 flex-1 rounded-xl border px-3 text-right text-sm font-bold text-[#13222b] placeholder:text-[#94a3b8] focus:bg-white focus:outline-none disabled:bg-[#f3f7f5] disabled:text-[#64748b] ${
+                          hasInvalid
+                            ? 'border-[#ef4444] bg-white focus:border-[#ef4444]'
+                            : row.isFilled
+                              ? 'border-[#2eb86b] bg-white focus:border-[#2eb86b]'
+                              : 'border-[#dce6e2] bg-[#f7faf9] focus:border-[#2eb86b]'
+                        }`}
+                      />
+                      <span className="w-11 shrink-0 text-xs font-semibold text-[#64748b]">
+                        {item.sat || 'pcs'}
+                      </span>
+                    </div>
+
+                    {hasInvalid && (
+                      <div className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-[#ef4444]">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                        <span>{invalidHint.text}</span>
+                      </div>
+                    )}
                   </div>
-                </section>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         )}
-      </div>
-
-      {/* BOTTOM STATUS & KEYBOARD HINT BAR */}
-      <div className="no-print flex flex-wrap items-center justify-between gap-2 border-t border-[#e5e5df] bg-[#fafaf8] px-5 py-2 text-xs md:px-6">
-        <div className="text-[#7c8580]">
-          Isi stok fisik saat toko buka tanggal 1 ·{' '}
-          <strong className="font-medium text-[#565e59]">Enter</strong> berikutnya ·{' '}
-          <strong className="font-medium text-[#565e59]">Shift+Enter</strong> kembali ·{' '}
-          <strong className="font-medium text-[#565e59]">Ctrl+S</strong> simpan
-        </div>
-        <div className="font-medium whitespace-nowrap">
-          {hasUnsavedAwal ? (
-            <span className="text-[#b45309]">Ada perubahan stok awal belum disimpan</span>
-          ) : (
-            <span className="text-[#15803d]">{sync.text}</span>
-          )}
-        </div>
       </div>
 
       {/* MODAL KONFIRMASI IMPORT CLOSING BULAN LALU */}
       {showImportModal && (
         <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#111614]/45 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowImportModal(false);
           }}
         >
-          <div className="w-full max-w-[440px] overflow-hidden rounded-xl border border-[#e5e5df] bg-white shadow-[0_20px_50px_rgba(17,22,20,0.16)]">
-            <div className="flex items-start justify-between border-b border-[#e5e5df] px-5 py-4">
+          <div className="w-full max-w-[440px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+            <div className="flex items-start justify-between border-b border-[#edf2f0] px-5 py-4">
               <div>
-                <h3 className="font-display text-base font-semibold text-[#141816]">
+                <h3 className="font-display text-base font-bold text-[#13222b]">
                   Ambil dari Closing {prevMonthLabel}
                 </h3>
-                <p className="mt-0.5 text-xs text-[#565e59]">
+                <p className="mt-0.5 text-xs text-[#64748b]">
                   {summary.prevAvailableCount} item memiliki data closing bulan lalu
                 </p>
               </div>
@@ -694,30 +565,30 @@ export const StokAwalPage: React.FC = () => {
                 type="button"
                 onClick={() => setShowImportModal(false)}
                 aria-label="Tutup modal"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-[#7c8580] hover:bg-[#f3f3ee] hover:text-[#141816] cursor-pointer"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="space-y-3 px-5 py-4 text-[13px] text-[#565e59]">
+            <div className="space-y-3 px-5 py-4 text-[13px] text-[#475569]">
               <p className="leading-relaxed">
-                Bulan <strong className="text-[#141816]">{monthLabel}</strong> sudah memiliki{' '}
-                <strong className="text-[#141816]">{summary.filledCount} item</strong> stok awal
+                Bulan <strong className="text-[#13222b]">{monthLabel}</strong> sudah memiliki{' '}
+                <strong className="text-[#13222b]">{summary.filledCount} item</strong> stok awal
                 terisi. Pilih cara pengisian dari closing terakhir{' '}
-                <strong className="text-[#141816]">{prevMonthLabel}</strong>:
+                <strong className="text-[#13222b]">{prevMonthLabel}</strong>:
               </p>
-              <p className="rounded-lg border border-[#e5e5df] bg-[#fafaf8] px-3 py-2 text-xs text-[#565e59]">
+              <p className="rounded-xl bg-[#f3f7f5] px-3.5 py-2.5 text-xs text-[#475569]">
                 Histori bulan lalu tidak akan diubah, dan item yang belum memiliki closing di bulan
-                lalu akan tetap dibiarkan kosong (tidak otomatis diisi 0).
+                lalu akan tetap dibiarkan kosong.
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#e5e5df] bg-[#fafaf8] px-5 py-3">
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3">
               <button
                 type="button"
                 onClick={() => setShowImportModal(false)}
-                className="h-8.5 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#565e59] hover:bg-[#f3f3ee] cursor-pointer"
+                className="h-9 rounded-xl bg-white px-3.5 text-xs font-semibold text-[#475569] shadow-xs hover:bg-[#eef3f1] cursor-pointer"
               >
                 Batal
               </button>
@@ -725,7 +596,7 @@ export const StokAwalPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => void executeImportPrevMonth('empty_only')}
-                  className="h-8.5 rounded-md border border-[#14533c] bg-white px-3.5 text-xs font-medium text-[#14533c] hover:bg-[#ecf5f1] cursor-pointer"
+                  className="h-9 rounded-xl bg-[#e6f7ee] px-3.5 text-xs font-bold text-[#15803d] hover:bg-[#d1f2e0] cursor-pointer"
                 >
                   Hanya isi item kosong
                 </button>
@@ -733,7 +604,7 @@ export const StokAwalPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => void executeImportPrevMonth('all')}
-                className="h-8.5 rounded-md bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                className="h-9 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white hover:bg-[#259f5b] cursor-pointer"
               >
                 Timpa semua ({summary.prevAvailableCount} item)
               </button>

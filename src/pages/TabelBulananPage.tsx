@@ -10,7 +10,6 @@ import {
   Download,
   FileText,
   Printer,
-  Search,
   Table2,
   X,
 } from 'lucide-react';
@@ -34,7 +33,6 @@ import {
   type MonthlyMetricMode,
   type PlainTextFilter,
 } from '../domain/stockCalculations';
-import type { MasterItem } from '../types/app';
 
 type TableSubMode = 'table' | 'text';
 
@@ -72,7 +70,6 @@ export const TabelBulananPage: React.FC = () => {
   const [subMode, setSubMode] = useState<TableSubMode>('table');
   const [metric, setMetric] = useState<MonthlyMetricMode>('p');
   const [catFilter, setCatFilter] = useState<string>('ALL');
-  const [searchQuery, setSearchQuery] = useState<string>('');
   const [onlyActiveDays, setOnlyActiveDays] = useState<boolean>(false);
 
   const [selectedTextDay, setSelectedTextDay] = useState<number | null>(null);
@@ -111,22 +108,10 @@ export const TabelBulananPage: React.FC = () => {
   );
 
   const filteredGroups = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
     return summary.groupedItems
       .filter(([cat]) => catFilter === 'ALL' || cat === catFilter)
-      .map(([cat, items]): [string, MasterItem[]] => {
-        if (!q) return [cat, items];
-        const matched = items.filter(
-          (i) =>
-            i.nama.toLowerCase().includes(q) ||
-            i.kat.toLowerCase().includes(q) ||
-            i.id.toLowerCase().includes(q) ||
-            (i.sat || '').toLowerCase().includes(q)
-        );
-        return [cat, matched];
-      })
       .filter(([, list]) => list.length > 0);
-  }, [summary.groupedItems, catFilter, searchQuery]);
+  }, [summary.groupedItems, catFilter]);
 
   const filteredItems = useMemo(
     () => filteredGroups.flatMap(([, list]) => list),
@@ -210,22 +195,23 @@ export const TabelBulananPage: React.FC = () => {
     METRIC_OPTIONS.find((m) => m.value === metric)?.label || 'Pemakaian';
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white">
-      {/* TOP HEADER BAR */}
-      <header className="shrink-0 border-b border-[#e5e5df] bg-white px-5 py-3.5 md:px-6">
+    <div className="dg-page">
+      {/* STICKY FLOATING TOP HEADER BAR */}
+      <div className="dg-sticky-header no-print px-4 pt-3 pb-1 md:px-6">
+        <header className="rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] md:px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-4">
-            <h1 className="font-display text-lg font-semibold text-[#141816] whitespace-nowrap">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="font-display text-base font-bold text-[#13222b] whitespace-nowrap">
               Tabel Bulanan
             </h1>
 
-            <div className="inline-flex items-center rounded-lg border border-[#e5e5df] bg-[#fafaf8] p-0.5">
+            <div className="inline-flex items-center rounded-xl bg-[#f3f7f5] p-0.5">
               <button
                 type="button"
                 onClick={() => moveMonth(-1)}
                 aria-label="Bulan sebelumnya"
                 title="Bulan sebelumnya"
-                className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] transition hover:bg-white hover:text-[#141816] cursor-pointer"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] transition hover:bg-white hover:text-[#13222b] cursor-pointer"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -235,7 +221,7 @@ export const TabelBulananPage: React.FC = () => {
                 value={ym}
                 onChange={(e) => handleMonthInputChange(e.target.value)}
                 aria-label="Pilih bulan dan tahun"
-                className="font-mono-num h-7 bg-transparent px-2 text-xs font-medium text-[#141816] outline-none"
+                className="font-mono-num h-7 bg-transparent px-2 text-xs font-semibold text-[#13222b] outline-none"
               />
 
               <button
@@ -243,7 +229,7 @@ export const TabelBulananPage: React.FC = () => {
                 onClick={() => moveMonth(1)}
                 aria-label="Bulan berikutnya"
                 title="Bulan berikutnya"
-                className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] transition hover:bg-white hover:text-[#141816] cursor-pointer"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] transition hover:bg-white hover:text-[#13222b] cursor-pointer"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -253,31 +239,70 @@ export const TabelBulananPage: React.FC = () => {
               <button
                 type="button"
                 onClick={goToday}
-                className="h-8 rounded-md border border-[#e5e5df] bg-white px-2.5 text-xs font-medium text-[#141816] whitespace-nowrap hover:bg-[#f3f3ee] cursor-pointer"
+                className="h-8 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] whitespace-nowrap transition hover:bg-[#e1ebe7] cursor-pointer"
               >
                 Bulan Ini
               </button>
             )}
 
-            <span className="hidden text-xs text-[#7c8580] whitespace-nowrap md:inline">
-              {getMonthLabel(ym)}
-            </span>
+            {subMode === 'table' && (
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={metric}
+                  onChange={(e) => setMetric(e.target.value as MonthlyMetricMode)}
+                  aria-label="Pilih metrik tabel bulanan"
+                  className="h-8 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] outline-none transition hover:bg-[#e7efec] focus:ring-2 focus:ring-[#2eb86b] cursor-pointer"
+                >
+                  {METRIC_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={catFilter}
+                  onChange={(e) => setCatFilter(e.target.value)}
+                  aria-label="Filter kategori"
+                  className="h-8 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#475569] outline-none transition hover:bg-[#e7efec] focus:ring-2 focus:ring-[#2eb86b] cursor-pointer"
+                >
+                  <option value="ALL">Semua Kategori ({categories.length})</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => setOnlyActiveDays((v) => !v)}
+                  className={`h-8 rounded-xl px-3 text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                    onlyActiveDays
+                      ? 'bg-[#2eb86b] text-white shadow-xs'
+                      : 'bg-[#f3f7f5] text-[#475569] hover:bg-[#e1ebe7] hover:text-[#13222b]'
+                  }`}
+                >
+                  {onlyActiveDays ? 'Hari Bertransaksi Saja' : 'Semua Tanggal (1–' + summary.nd + ')'}
+                </button>
+              </div>
+            )}
           </div>
 
           <div
             role="tablist"
             aria-label="Mode tampilan tabel bulanan"
-            className="flex shrink-0 items-center gap-0.5 rounded-lg border border-[#e5e5df] bg-[#f7f7f4] p-0.5"
+            className="flex shrink-0 items-center gap-1 rounded-xl bg-[#f3f7f5] p-1"
           >
             <button
               type="button"
               role="tab"
               aria-selected={subMode === 'table'}
               onClick={() => setSubMode('table')}
-              className={`flex h-7.5 items-center gap-1.5 rounded-md px-3 text-xs font-medium whitespace-nowrap shrink-0 transition cursor-pointer ${
+              className={`flex h-7 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
                 subMode === 'table'
-                  ? 'bg-[#14533c] text-white'
-                  : 'text-[#565e59] hover:bg-white hover:text-[#141816]'
+                  ? 'bg-[#2eb86b] text-white shadow-xs'
+                  : 'text-[#64748b] hover:text-[#13222b]'
               }`}
             >
               <Table2 className="h-3.5 w-3.5" />
@@ -288,10 +313,10 @@ export const TabelBulananPage: React.FC = () => {
               role="tab"
               aria-selected={subMode === 'text'}
               onClick={() => setSubMode('text')}
-              className={`flex h-7.5 items-center gap-1.5 rounded-md px-3 text-xs font-medium whitespace-nowrap shrink-0 transition cursor-pointer ${
+              className={`flex h-7 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
                 subMode === 'text'
-                  ? 'bg-[#14533c] text-white'
-                  : 'text-[#565e59] hover:bg-white hover:text-[#141816]'
+                  ? 'bg-[#2eb86b] text-white shadow-xs'
+                  : 'text-[#64748b] hover:text-[#13222b]'
               }`}
             >
               <FileText className="h-3.5 w-3.5" />
@@ -299,46 +324,47 @@ export const TabelBulananPage: React.FC = () => {
             </button>
           </div>
         </div>
-      </header>
+        </header>
+      </div>
 
-      {/* MONTHLY SUMMARY STRIP */}
-      <div className="shrink-0 border-b border-[#e5e5df] bg-[#fafaf8] px-5 py-2 md:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#565e59]">
+      {/* FLOATING COMPACT SUMMARY STRIP */}
+      <div className="no-print mx-4 mt-3 shrink-0 rounded-2xl bg-white px-4 py-2.5 shadow-[0_6px_22px_rgba(13,37,48,0.045)] md:mx-6 md:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#64748b]">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>
               Pemakaian Bulan{' '}
-              <strong className="font-mono-num font-semibold text-[#14533c]">
+              <strong className="font-mono-num font-bold text-[#15803d]">
                 {formatNum(summary.totalPemakaianAll)}
               </strong>
             </span>
-            <span aria-hidden="true" className="text-[#d4d4cc]">
+            <span aria-hidden="true" className="text-[#cbd5e1]">
               ·
             </span>
             <span>
               Barang Datang{' '}
-              <strong className="font-mono-num font-semibold text-[#141816]">
+              <strong className="font-mono-num font-bold text-[#13222b]">
                 {formatNum(summary.totalDatangAll)}
               </strong>
             </span>
-            <span aria-hidden="true" className="text-[#d4d4cc]">
+            <span aria-hidden="true" className="text-[#cbd5e1]">
               ·
             </span>
             <span>
               Hari Closing{' '}
-              <strong className="font-mono-num font-semibold text-[#141816]">
+              <strong className="font-mono-num font-bold text-[#13222b]">
                 {summary.daysWithClosing}/{summary.nd}
               </strong>
             </span>
-            <span aria-hidden="true" className="text-[#d4d4cc]">
+            <span aria-hidden="true" className="text-[#cbd5e1]">
               ·
             </span>
             <span>
               Item Tampil{' '}
-              <strong className="font-mono-num font-semibold text-[#141816]">
+              <strong className="font-mono-num font-bold text-[#13222b]">
                 {summary.orderedItems.length}
               </strong>
               {summary.archivedWithHistoryCount > 0 && (
-                <span className="text-[#7c8580]">
+                <span className="text-[#64748b]">
                   {' '}
                   (termasuk {summary.archivedWithHistoryCount} arsip berhistori)
                 </span>
@@ -350,7 +376,7 @@ export const TabelBulananPage: React.FC = () => {
             <button
               type="button"
               onClick={() => openDayInInputHarian(firstNegativeDay, 'closing')}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#b91c1c] hover:underline whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#fee2e2] px-2.5 py-1 text-xs font-semibold text-[#b91c1c] transition hover:bg-[#fecaca] whitespace-nowrap cursor-pointer"
             >
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               <span>
@@ -362,9 +388,9 @@ export const TabelBulananPage: React.FC = () => {
         </div>
       </div>
 
-      {/* FEEDBACK BANNER */}
+      {/* FLOATING FEEDBACK BANNER */}
       {copyFeedback && (
-        <div className="shrink-0 flex items-center justify-between gap-2 border-b border-[#bbf7d0] bg-[#f0fdf4] px-5 py-2 text-xs font-medium text-[#15803d] md:px-6">
+        <div className="no-print mx-4 mt-3 shrink-0 flex items-center justify-between gap-2 rounded-xl bg-[#2eb86b] px-4 py-2.5 text-xs font-semibold text-white shadow-sm md:mx-6">
           <span className="flex items-center gap-1.5">
             <Check className="h-3.5 w-3.5" />
             {copyFeedback}
@@ -373,7 +399,7 @@ export const TabelBulananPage: React.FC = () => {
             type="button"
             onClick={() => setCopyFeedback(null)}
             aria-label="Tutup notifikasi"
-            className="opacity-70 hover:opacity-100 cursor-pointer"
+            className="opacity-80 hover:opacity-100 cursor-pointer"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -382,490 +408,435 @@ export const TabelBulananPage: React.FC = () => {
 
       {/* MAIN BODY */}
       {subMode === 'table' ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4 md:px-6">
-          {/* Controls bar */}
-          <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={metric}
-                onChange={(e) => setMetric(e.target.value as MonthlyMetricMode)}
-                aria-label="Pilih metrik tabel bulanan"
-                className="h-8.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] outline-none focus:border-[#14533c] cursor-pointer"
-              >
-                {METRIC_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={catFilter}
-                onChange={(e) => setCatFilter(e.target.value)}
-                aria-label="Filter kategori"
-                className="h-8.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs text-[#565e59] outline-none focus:border-[#14533c] cursor-pointer"
-              >
-                <option value="ALL">Semua Kategori ({categories.length})</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-
-              <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-[#9aa39e]" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari item…"
-                  aria-label="Cari item di tabel bulanan"
-                  className="h-8.5 w-40 rounded-md border border-[#e5e5df] bg-white pr-7 pl-8 text-xs text-[#141816] outline-none placeholder:text-[#9aa39e] focus:border-[#14533c]"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    aria-label="Hapus pencarian"
-                    className="absolute top-1/2 right-2 -translate-y-1/2 text-[#9aa39e] hover:text-[#141816] cursor-pointer"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setOnlyActiveDays((v) => !v)}
-                className={`h-8.5 rounded-md border px-3 text-xs font-medium whitespace-nowrap transition cursor-pointer ${
-                  onlyActiveDays
-                    ? 'border-[#14533c] bg-[#ecf5f1] text-[#14533c]'
-                    : 'border-[#e5e5df] bg-white text-[#565e59] hover:bg-[#f3f3ee]'
-                }`}
-              >
-                {onlyActiveDays ? 'Hari Bertransaksi Saja' : 'Semua Tanggal (1–' + summary.nd + ')'}
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleDownloadCsv}
-                className="inline-flex h-8.5 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] whitespace-nowrap hover:bg-[#f3f3ee] cursor-pointer"
-              >
-                <Download className="h-3.5 w-3.5 text-[#14533c]" />
-                <span>Unduh CSV</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => navigateTo('in', { ym, day: summary.defaultDay })}
-                className="inline-flex h-8.5 items-center gap-1.5 rounded-md bg-[#14533c] px-3.5 text-xs font-medium text-white whitespace-nowrap hover:bg-[#0f3f2d] cursor-pointer"
-              >
-                <span>Buka Input Harian</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-
-          <div className="mb-2.5 flex shrink-0 flex-wrap items-center justify-between gap-2 text-xs text-[#7c8580]">
-            <span>
-              Matriks <strong className="font-medium text-[#141816]">{currentMetricLabel}</strong>{' '}
-              {monthName} {yearNum}. Klik tanggal untuk mengedit, atau klik nama item untuk detail.
-            </span>
-            <span>Tanda &ldquo;–&rdquo; berarti belum diinput (berbeda dengan 0).</span>
-          </div>
-
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-3 md:px-6 md:py-4">
           {filteredItems.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-[#e5e5df] bg-[#fafaf8] p-10 text-center">
-              <p className="font-display text-sm font-semibold text-[#141816]">
+            <div className="flex flex-1 flex-col items-center justify-center rounded-2xl bg-white p-10 text-center shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
+              <p className="font-display text-sm font-bold text-[#13222b]">
                 {summary.orderedItems.length === 0
                   ? 'Belum ada item di Master Item.'
                   : 'Tidak ada item yang cocok dengan filter.'}
               </p>
-              <p className="mt-1 text-xs text-[#565e59]">
+              <p className="mt-1 text-xs text-[#64748b]">
                 {summary.orderedItems.length === 0
                   ? 'Tambahkan item terlebih dahulu di menu Master Item.'
-                  : 'Ubah kata kunci pencarian atau pilih kategori lain.'}
+                  : 'Pilih kategori lain atau tampilkan semua kategori.'}
               </p>
               {summary.orderedItems.length === 0 ? (
                 <button
                   type="button"
                   onClick={() => navigateTo('ms')}
-                  className="mt-4 h-8.5 rounded-md bg-[#14533c] px-4 text-xs font-medium text-white hover:bg-[#0f3f2d] cursor-pointer"
+                  className="mt-4 h-9 rounded-xl bg-[#2eb86b] px-4 text-xs font-semibold text-white transition hover:bg-[#259f5b] cursor-pointer"
                 >
                   Buka Master Item
                 </button>
               ) : (
                 <button
                   type="button"
-                  onClick={() => {
-                    setCatFilter('ALL');
-                    setSearchQuery('');
-                  }}
-                  className="mt-4 h-8 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
+                  onClick={() => setCatFilter('ALL')}
+                  className="mt-4 h-9 rounded-xl bg-[#f3f7f5] px-4 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
                 >
                   Reset Filter
                 </button>
               )}
             </div>
           ) : (
-            <div className="dg-scroll relative min-h-0 flex-1 overflow-auto rounded-lg border border-[#e5e5df] bg-white">
-              <table className="w-full border-collapse text-[13px]">
-                <thead>
-                  <tr>
-                    <th
-                      rowSpan={2}
-                      className="sticky top-0 left-0 z-30 min-w-[98px] border-r border-b border-[#e5e5df] bg-[#fafaf8] px-3 py-2.5 text-left text-xs font-medium text-[#565e59] whitespace-nowrap"
-                    >
-                      Tanggal
-                    </th>
-                    {filteredGroups.map(([cat, items]) => (
-                      <th
-                        key={cat}
-                        colSpan={items.length}
-                        className="sticky top-0 z-20 border-b border-l border-[#e5e5df] bg-[#f4f4ef] px-3 py-2 text-center text-xs font-semibold text-[#141816] whitespace-nowrap"
-                      >
-                        {cat}
-                      </th>
-                    ))}
-                  </tr>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-[0_6px_24px_rgba(13,37,48,0.045)]">
+              {/* Compact info + actions row */}
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#edf2f0] px-4 py-3 md:px-5">
+                <span className="text-xs text-[#64748b]">
+                  Matriks{' '}
+                  <strong className="font-semibold text-[#13222b]">{currentMetricLabel}</strong>{' '}
+                  {monthName} {yearNum}. Klik tanggal untuk mengedit, atau klik nama item untuk
+                  detail.
+                  <span className="hidden xl:inline">
+                    {' '}
+                    · Tanda &ldquo;–&rdquo; berarti belum diinput.
+                  </span>
+                </span>
 
-                  <tr>
-                    {filteredItems.map((item, idx) => {
-                      const isFirstInCat = idx === 0 || filteredItems[idx - 1].kat !== item.kat;
-                      return (
-                        <th
-                          key={item.id}
-                          className={`sticky top-[33px] z-20 min-w-[92px] border-b border-[#e5e5df] bg-[#fafaf8] px-2.5 py-2 text-right whitespace-nowrap ${
-                            isFirstInCat ? 'border-l border-[#e5e5df]' : ''
-                          }`}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedItemId(item.id);
-                              setDetailShowAllDays(false);
-                            }}
-                            title={`Lihat detail bulanan ${item.nama} (ID: ${item.id})`}
-                            className="group inline-flex max-w-[150px] flex-col items-end text-right cursor-pointer"
-                          >
-                            <span className="truncate text-[11.5px] font-medium text-[#141816] group-hover:text-[#14533c] group-hover:underline">
-                              {item.nama}
-                            </span>
-                            <span className="text-[10px] font-normal text-[#7c8580]">
-                              {item.sat || 'pcs'}
-                              {!item.aktif ? ' · Arsip' : ''}
-                            </span>
-                          </button>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDownloadCsv}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] whitespace-nowrap transition hover:bg-[#e1ebe7] cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5 text-[#2eb86b]" />
+                    <span>Unduh CSV</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('in', { ym, day: summary.defaultDay })}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-3.5 text-xs font-semibold text-white whitespace-nowrap transition hover:bg-[#259f5b] cursor-pointer"
+                  >
+                    <span>Buka Input Harian</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
 
-                <tbody>
-                  <tr className="border-b border-[#e5e5df] bg-[#fafaf8] hover:bg-[#f4f4ef]">
-                    <td className="sticky left-0 z-10 border-r border-[#e5e5df] bg-[#fafaf8] px-3 py-2 text-left whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => navigateTo('aw', { ym })}
-                        title="Buka menu Stok Awal"
-                        className="text-xs font-semibold text-[#14533c] hover:underline cursor-pointer"
-                      >
-                        Stok Awal
-                      </button>
-                    </td>
-                    {filteredItems.map((item, idx) => {
-                      const isFirstInCat = idx === 0 || filteredItems[idx - 1].kat !== item.kat;
-                      const awal = getStockVal(state, ym, 'a', 0, item.id);
-                      return (
-                        <td
-                          key={item.id}
-                          onClick={() => navigateTo('aw', { ym })}
-                          title={`Stok awal ${item.nama} — klik untuk buka Stok Awal`}
-                          className={`font-mono-num cursor-pointer px-2.5 py-2 text-right text-xs whitespace-nowrap ${
-                            isFirstInCat ? 'border-l border-[#efefea]' : ''
-                          } ${hasVal(awal) ? 'font-medium text-[#141816]' : 'text-[#c7ccc9]'}`}
-                        >
-                          {hasVal(awal) ? formatNum(awal) : '–'}
-                        </td>
-                      );
-                    })}
-                  </tr>
-
-                  {visibleDays.length === 0 ? (
+              <div className="dg-scroll relative min-h-0 flex-1 overflow-auto">
+                <table className="w-full border-collapse text-[13px]">
+                  <thead>
                     <tr>
-                      <td
-                        colSpan={filteredItems.length + 1}
-                        className="py-12 text-center text-xs text-[#7c8580]"
+                      <th
+                        rowSpan={2}
+                        className="sticky top-0 left-0 z-30 min-w-[98px] border-r border-b border-[#edf2f0] bg-[#f7faf9] px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.04em] text-[#64748b] whitespace-nowrap"
                       >
-                        Belum ada transaksi stok pada bulan {monthName} {yearNum}.
-                      </td>
-                    </tr>
-                  ) : (
-                    visibleDays.map((d) => {
-                      const dow = getDayOfWeek(ym, d);
-                      const isSunday = dow === 0;
-                      const isToday = summary.isCur && d === summary.today;
-                      const shortDay = (DAY_NAMES[dow] || '').slice(0, 3);
-                      const rowBg = isSunday ? 'bg-[#f4faf7]' : 'bg-white';
-
-                      return (
-                        <tr
-                          key={d}
-                          className={`group border-b border-[#efefea] transition hover:bg-[#fafaf8] ${rowBg}`}
+                        Tanggal
+                      </th>
+                      {filteredGroups.map(([cat, items]) => (
+                        <th
+                          key={cat}
+                          colSpan={items.length}
+                          className="sticky top-0 z-20 border-b border-l border-[#edf2f0] bg-[#f3f7f5] px-3 py-2 text-center text-[11.5px] font-bold text-[#13222b] whitespace-nowrap"
                         >
-                          <td
-                            className={`sticky left-0 z-10 border-r border-[#e5e5df] px-3 py-2 text-left whitespace-nowrap transition group-hover:bg-[#fafaf8] ${rowBg} ${
-                              isToday ? 'shadow-[inset_3px_0_0_#14533c]' : ''
+                          {cat}
+                        </th>
+                      ))}
+                    </tr>
+
+                    <tr>
+                      {filteredItems.map((item, idx) => {
+                        const isFirstInCat = idx === 0 || filteredItems[idx - 1].kat !== item.kat;
+                        return (
+                          <th
+                            key={item.id}
+                            className={`sticky top-[33px] z-20 min-w-[92px] border-b border-[#edf2f0] bg-[#f7faf9] px-2.5 py-2 text-right whitespace-nowrap ${
+                              isFirstInCat ? 'border-l border-[#edf2f0]' : ''
                             }`}
                           >
                             <button
                               type="button"
-                              onClick={() => openDayInInputHarian(d)}
-                              title={`Buka Input Harian tanggal ${d} ${monthName} ${yearNum}`}
-                              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#141816] hover:text-[#14533c] hover:underline cursor-pointer"
+                              onClick={() => {
+                                setSelectedItemId(item.id);
+                                setDetailShowAllDays(false);
+                              }}
+                              title={`Lihat detail bulanan ${item.nama} (ID: ${item.id})`}
+                              className="group inline-flex max-w-[150px] flex-col items-end text-right cursor-pointer"
                             >
-                              <span className="font-mono-num w-5 text-right">{d}</span>
-                              <span
-                                className={
-                                  isSunday ? 'font-medium text-[#14533c]' : 'text-[#7c8580]'
-                                }
-                              >
-                                {shortDay}
+                              <span className="truncate text-[11.5px] font-semibold text-[#13222b] group-hover:text-[#15803d] group-hover:underline">
+                                {item.nama}
                               </span>
-                              {isToday && (
-                                <span className="text-[10px] font-semibold text-[#14533c]">
-                                  Hari ini
-                                </span>
-                              )}
+                              <span className="text-[10px] font-medium text-[#64748b]">
+                                {item.sat || 'pcs'}
+                                {!item.aktif ? ' · Arsip' : ''}
+                              </span>
                             </button>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    <tr className="border-b border-[#edf2f0] bg-[#f7faf9] hover:bg-[#f0f6f3]">
+                      <td className="sticky left-0 z-10 border-r border-[#edf2f0] bg-[#f7faf9] px-3 py-2 text-left whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => navigateTo('aw', { ym })}
+                          title="Buka menu Stok Awal"
+                          className="text-xs font-bold text-[#15803d] hover:underline cursor-pointer"
+                        >
+                          Stok Awal
+                        </button>
+                      </td>
+                      {filteredItems.map((item, idx) => {
+                        const isFirstInCat = idx === 0 || filteredItems[idx - 1].kat !== item.kat;
+                        const awal = getStockVal(state, ym, 'a', 0, item.id);
+                        return (
+                          <td
+                            key={item.id}
+                            onClick={() => navigateTo('aw', { ym })}
+                            title={`Stok awal ${item.nama} — klik untuk buka Stok Awal`}
+                            className={`font-mono-num cursor-pointer px-2.5 py-2 text-right text-xs whitespace-nowrap ${
+                              isFirstInCat ? 'border-l border-[#edf2f0]' : ''
+                            } ${hasVal(awal) ? 'font-semibold text-[#13222b]' : 'text-[#94a3b8]'}`}
+                          >
+                            {hasVal(awal) ? formatNum(awal) : '–'}
                           </td>
+                        );
+                      })}
+                    </tr>
 
-                          {filteredItems.map((item, idx) => {
-                            const isFirstInCat =
-                              idx === 0 || filteredItems[idx - 1].kat !== item.kat;
-                            const val =
-                              metric === 'd'
-                                ? getStockVal(state, ym, 'd', d, item.id)
-                                : metric === 't'
-                                  ? getStockTotal(state, ym, d, item.id)
-                                  : metric === 'c'
-                                    ? getStockVal(state, ym, 'c', d, item.id)
-                                    : getDailyUsage(state, ym, d, item.id);
+                    {visibleDays.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={filteredItems.length + 1}
+                          className="py-12 text-center text-xs text-[#64748b]"
+                        >
+                          Belum ada transaksi stok pada bulan {monthName} {yearNum}.
+                        </td>
+                      </tr>
+                    ) : (
+                      visibleDays.map((d) => {
+                        const dow = getDayOfWeek(ym, d);
+                        const isSunday = dow === 0;
+                        const isToday = summary.isCur && d === summary.today;
+                        const shortDay = (DAY_NAMES[dow] || '').slice(0, 3);
+                        const rowBg = isSunday ? 'bg-[#f4fbf7]' : 'bg-white';
 
-                            const isMissing = val === null || val === undefined;
-                            const isNeg = !isMissing && val < 0;
-                            const isZeroExplicit = !isMissing && val === 0;
-
-                            return (
-                              <td
-                                key={item.id}
+                        return (
+                          <tr
+                            key={d}
+                            className={`group border-b border-[#edf2f0] transition hover:bg-[#f7faf9] ${rowBg}`}
+                          >
+                            <td
+                              className={`sticky left-0 z-10 border-r border-[#edf2f0] px-3 py-2 text-left whitespace-nowrap transition group-hover:bg-[#f7faf9] ${rowBg} ${
+                                isToday ? 'shadow-[inset_3px_0_0_#2eb86b]' : ''
+                              }`}
+                            >
+                              <button
+                                type="button"
                                 onClick={() => openDayInInputHarian(d)}
-                                title={`${item.nama} · Tgl ${d} ${monthName}: ${
-                                  isMissing ? 'Belum diisi' : `${formatNum(val)} ${item.sat || 'pcs'}`
-                                } (klik untuk buka Input Harian)`}
-                                className={`font-mono-num cursor-pointer px-2.5 py-2 text-right text-xs whitespace-nowrap ${
-                                  isFirstInCat ? 'border-l border-[#efefea]' : ''
-                                }`}
+                                title={`Buka Input Harian tanggal ${d} ${monthName} ${yearNum}`}
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#13222b] hover:text-[#15803d] hover:underline cursor-pointer"
                               >
-                                {isMissing ? (
-                                  <span className="text-[#c7ccc9]">–</span>
-                                ) : isNeg ? (
-                                  <span className="inline-block rounded bg-[#fef2f2] px-1.5 py-0.5 font-semibold text-[#b91c1c]">
-                                    {formatNum(val)}
-                                  </span>
-                                ) : (
-                                  <span
-                                    className={
-                                      isZeroExplicit
-                                        ? 'text-[#7c8580]'
-                                        : 'font-medium text-[#141816]'
-                                    }
-                                  >
-                                    {formatNum(val)}
+                                <span className="font-mono-num w-5 text-right">{d}</span>
+                                <span
+                                  className={
+                                    isSunday ? 'font-semibold text-[#15803d]' : 'text-[#64748b]'
+                                  }
+                                >
+                                  {shortDay}
+                                </span>
+                                {isToday && (
+                                  <span className="rounded bg-[#e6f7ee] px-1.5 py-0.5 text-[10px] font-bold text-[#15803d]">
+                                    Hari ini
                                   </span>
                                 )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
+                              </button>
+                            </td>
 
-                <tfoot>
-                  <tr className="bg-[#111614] text-white">
-                    <td className="sticky bottom-0 left-0 z-30 border-r border-[#232c28] bg-[#111614] px-3 py-2.5 text-left text-xs font-semibold whitespace-nowrap">
-                      {metric === 'd' || metric === 'p' ? 'Total Bulan' : 'Closing Akhir'}
-                    </td>
-                    {filteredItems.map((item, idx) => {
-                      const isFirstInCat = idx === 0 || filteredItems[idx - 1].kat !== item.kat;
-                      const st = summary.itemSummaries[item.id];
-                      let text = '–';
-                      let isNegTotal = false;
+                            {filteredItems.map((item, idx) => {
+                              const isFirstInCat =
+                                idx === 0 || filteredItems[idx - 1].kat !== item.kat;
+                              const val =
+                                metric === 'd'
+                                  ? getStockVal(state, ym, 'd', d, item.id)
+                                  : metric === 't'
+                                    ? getStockTotal(state, ym, d, item.id)
+                                    : metric === 'c'
+                                      ? getStockVal(state, ym, 'c', d, item.id)
+                                      : getDailyUsage(state, ym, d, item.id);
 
-                      if (metric === 'd') {
-                        text = st && st.datangDaysCount > 0 ? formatNum(st.totalDatang) : '–';
-                      } else if (metric === 'p') {
-                        if (st && st.pemakaianDaysCount > 0) {
-                          text = formatNum(st.totalPemakaian);
-                          isNegTotal = st.totalPemakaian < 0;
+                              const isMissing = val === null || val === undefined;
+                              const isNeg = !isMissing && val < 0;
+                              const isZeroExplicit = !isMissing && val === 0;
+
+                              return (
+                                <td
+                                  key={item.id}
+                                  onClick={() => openDayInInputHarian(d)}
+                                  title={`${item.nama} · Tgl ${d} ${monthName}: ${
+                                    isMissing ? 'Belum diisi' : `${formatNum(val)} ${item.sat || 'pcs'}`
+                                  } (klik untuk buka Input Harian)`}
+                                  className={`font-mono-num cursor-pointer px-2.5 py-2 text-right text-xs whitespace-nowrap ${
+                                    isFirstInCat ? 'border-l border-[#edf2f0]' : ''
+                                  }`}
+                                >
+                                  {isMissing ? (
+                                    <span className="text-[#94a3b8]">–</span>
+                                  ) : isNeg ? (
+                                    <span className="inline-block rounded-md bg-[#fee2e2] px-1.5 py-0.5 font-bold text-[#b91c1c]">
+                                      {formatNum(val)}
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className={
+                                        isZeroExplicit
+                                          ? 'text-[#64748b]'
+                                          : 'font-semibold text-[#13222b]'
+                                      }
+                                    >
+                                      {formatNum(val)}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+
+                  <tfoot>
+                    <tr className="bg-[#0d2530] text-white">
+                      <td className="sticky bottom-0 left-0 z-30 border-r border-[#1e3d4c] bg-[#0d2530] px-3 py-2.5 text-left text-xs font-bold whitespace-nowrap">
+                        {metric === 'd' || metric === 'p' ? 'Total Bulan' : 'Closing Akhir'}
+                      </td>
+                      {filteredItems.map((item, idx) => {
+                        const isFirstInCat = idx === 0 || filteredItems[idx - 1].kat !== item.kat;
+                        const st = summary.itemSummaries[item.id];
+                        let text = '–';
+                        let isNegTotal = false;
+
+                        if (metric === 'd') {
+                          text = st && st.datangDaysCount > 0 ? formatNum(st.totalDatang) : '–';
+                        } else if (metric === 'p') {
+                          if (st && st.pemakaianDaysCount > 0) {
+                            text = formatNum(st.totalPemakaian);
+                            isNegTotal = st.totalPemakaian < 0;
+                          }
+                        } else {
+                          text = st && hasVal(st.lastClosing) ? formatNum(st.lastClosing) : '–';
                         }
-                      } else {
-                        text = st && hasVal(st.lastClosing) ? formatNum(st.lastClosing) : '–';
-                      }
 
-                      return (
-                        <td
-                          key={item.id}
-                          onClick={() => {
-                            setSelectedItemId(item.id);
-                            setDetailShowAllDays(false);
-                          }}
-                          title={`Klik untuk lihat detail ${item.nama}`}
-                          className={`font-mono-num sticky bottom-0 z-20 cursor-pointer bg-[#111614] px-2.5 py-2.5 text-right text-xs font-semibold whitespace-nowrap ${
-                            isFirstInCat ? 'border-l border-[#232c28]' : ''
-                          } ${isNegTotal ? 'text-[#fca5a5]' : 'text-white'}`}
-                        >
-                          {text}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                </tfoot>
-              </table>
+                        return (
+                          <td
+                            key={item.id}
+                            onClick={() => {
+                              setSelectedItemId(item.id);
+                              setDetailShowAllDays(false);
+                            }}
+                            title={`Klik untuk lihat detail ${item.nama}`}
+                            className={`font-mono-num sticky bottom-0 z-20 cursor-pointer bg-[#0d2530] px-2.5 py-2.5 text-right text-xs font-bold whitespace-nowrap ${
+                              isFirstInCat ? 'border-l border-[#1e3d4c]' : ''
+                            } ${isNegTotal ? 'text-[#fca5a5]' : 'text-white'}`}
+                          >
+                            {text}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
           )}
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4 md:px-6">
-          <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center rounded-lg border border-[#e5e5df] bg-[#fafaf8] p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setSelectedTextDay(Math.max(1, curTextDay - 1))}
-                  disabled={curTextDay <= 1}
-                  aria-label="Hari sebelumnya"
-                  title="Hari sebelumnya"
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] hover:bg-white hover:text-[#141816] disabled:opacity-40 cursor-pointer"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <div className="flex h-7 items-center gap-1.5 px-2.5 text-xs font-medium text-[#141816] whitespace-nowrap">
-                  <Calendar className="h-3.5 w-3.5 text-[#14533c]" />
-                  <span>
-                    {DAY_NAMES[getDayOfWeek(ym, curTextDay)]}, {curTextDay} {monthName}
-                  </span>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-3 md:px-6 md:py-4">
+          <div className="flex min-h-0 flex-1 flex-col rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(13,37,48,0.045)] md:p-5">
+            <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex items-center rounded-xl bg-[#f3f7f5] p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTextDay(Math.max(1, curTextDay - 1))}
+                    disabled={curTextDay <= 1}
+                    aria-label="Hari sebelumnya"
+                    title="Hari sebelumnya"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] hover:bg-white hover:text-[#13222b] disabled:opacity-40 cursor-pointer"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <div className="flex h-7 items-center gap-1.5 px-2.5 text-xs font-semibold text-[#13222b] whitespace-nowrap">
+                    <Calendar className="h-3.5 w-3.5 text-[#2eb86b]" />
+                    <span>
+                      {DAY_NAMES[getDayOfWeek(ym, curTextDay)]}, {curTextDay} {monthName}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTextDay(Math.min(summary.nd, curTextDay + 1))}
+                    disabled={curTextDay >= summary.nd}
+                    aria-label="Hari berikutnya"
+                    title="Hari berikutnya"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-[#475569] hover:bg-white hover:text-[#13222b] disabled:opacity-40 cursor-pointer"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTextDay(Math.min(summary.nd, curTextDay + 1))}
-                  disabled={curTextDay >= summary.nd}
-                  aria-label="Hari berikutnya"
-                  title="Hari berikutnya"
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-[#565e59] hover:bg-white hover:text-[#141816] disabled:opacity-40 cursor-pointer"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
+
+                {summary.isCur && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTextDay(summary.today)}
+                    className={`h-8 rounded-xl px-3 text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                      curTextDay === summary.today
+                        ? 'bg-[#2eb86b] text-white shadow-xs'
+                        : 'bg-[#f3f7f5] text-[#475569] hover:bg-[#e1ebe7] hover:text-[#13222b]'
+                    }`}
+                  >
+                    Hari Ini
+                  </button>
+                )}
+
+                {(!summary.isCur || summary.defaultDay !== summary.today) && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTextDay(summary.defaultDay)}
+                    className={`h-8 rounded-xl px-3 text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                      curTextDay === summary.defaultDay
+                        ? 'bg-[#2eb86b] text-white shadow-xs'
+                        : 'bg-[#f3f7f5] text-[#475569] hover:bg-[#e1ebe7] hover:text-[#13222b]'
+                    }`}
+                  >
+                    Data Terakhir (Tgl {summary.defaultDay})
+                  </button>
+                )}
               </div>
 
-              {summary.isCur && (
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={plainFilter}
+                  onChange={(e) => setPlainFilter(e.target.value as PlainTextFilter)}
+                  aria-label="Filter isi plain text"
+                  className="h-8 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] outline-none transition hover:bg-[#e7efec] focus:ring-2 focus:ring-[#2eb86b] cursor-pointer"
+                >
+                  {PLAIN_FILTER_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+
                 <button
                   type="button"
-                  onClick={() => setSelectedTextDay(summary.today)}
-                  className={`h-8 rounded-md border px-2.5 text-xs font-medium whitespace-nowrap transition cursor-pointer ${
-                    curTextDay === summary.today
-                      ? 'border-[#14533c] bg-[#ecf5f1] text-[#14533c]'
-                      : 'border-[#e5e5df] bg-white text-[#565e59] hover:bg-[#f3f3ee]'
-                  }`}
+                  onClick={handleCopyPlainText}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[#2eb86b] px-3.5 text-xs font-semibold text-white whitespace-nowrap transition hover:bg-[#259f5b] cursor-pointer"
                 >
-                  Hari Ini (Tgl {summary.today})
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>Salin Text</span>
                 </button>
-              )}
 
-              <button
-                type="button"
-                onClick={() => setSelectedTextDay(summary.defaultDay)}
-                className={`h-8 rounded-md border px-2.5 text-xs font-medium whitespace-nowrap transition cursor-pointer ${
-                  curTextDay === summary.defaultDay
-                    ? 'border-[#14533c] bg-[#ecf5f1] text-[#14533c]'
-                    : 'border-[#e5e5df] bg-white text-[#565e59] hover:bg-[#f3f3ee]'
-                }`}
-              >
-                Data Terakhir (Tgl {summary.defaultDay})
-              </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadTxt}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] whitespace-nowrap transition hover:bg-[#e1ebe7] cursor-pointer"
+                >
+                  <Download className="h-3.5 w-3.5 text-[#2eb86b]" />
+                  <span>Unduh TXT</span>
+                </button>
+              </div>
+            </div>
 
-              {isFallbackTextDay && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-[#92400e]">
-                  <AlertTriangle className="h-3.5 w-3.5 text-[#b45309]" />
-                  <span>Hari ini belum diisi · Menampilkan data terakhir Tgl {curTextDay}</span>
+            {isFallbackTextDay && (
+              <div className="mb-3 flex shrink-0 items-center gap-2 rounded-xl bg-[#f59e0b] px-3.5 py-2 text-xs font-semibold text-white">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-white" />
+                <span>
+                  Hari ini belum diisi — menampilkan data terakhir Tgl {curTextDay} {monthName}.
                 </span>
-              )}
-            </div>
+              </div>
+            )}
 
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={plainFilter}
-                onChange={(e) => setPlainFilter(e.target.value as PlainTextFilter)}
-                aria-label="Filter isi plain text"
-                className="h-8.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] outline-none focus:border-[#14533c] cursor-pointer"
-              >
-                {PLAIN_FILTER_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+            <pre className="dg-scroll font-mono-num min-h-0 flex-1 overflow-y-auto rounded-xl border border-[#edf2f0] bg-[#f7faf9] p-4 text-[12.5px] leading-[1.65] whitespace-pre-wrap text-[#13222b] select-text">
+              {plainTextContent}
+            </pre>
 
-              <button
-                type="button"
-                onClick={handleCopyPlainText}
-                className="inline-flex h-8.5 items-center gap-1.5 rounded-md bg-[#14533c] px-3.5 text-xs font-medium text-white whitespace-nowrap hover:bg-[#0f3f2d] cursor-pointer"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                <span>Salin Text</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDownloadTxt}
-                className="inline-flex h-8.5 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] whitespace-nowrap hover:bg-[#f3f3ee] cursor-pointer"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>Unduh TXT</span>
-              </button>
-            </div>
-          </div>
-
-          <pre className="dg-scroll font-mono-num min-h-0 flex-1 overflow-y-auto rounded-lg border border-[#e5e5df] bg-[#fafaf8] p-4 text-[12.5px] leading-[1.65] whitespace-pre-wrap text-[#141816] select-text">
-            {plainTextContent}
-          </pre>
-
-          <div className="mt-2.5 flex shrink-0 flex-wrap items-center justify-between gap-2">
-            <span className="text-xs text-[#7c8580]">
-              Format plain text siap dibaca dan disalin ke WhatsApp atau catatan operasional toko.
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => openDayInInputHarian(curTextDay, 'closing')}
-                className="inline-flex h-8 items-center gap-1 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#14533c] hover:bg-[#ecf5f1] cursor-pointer"
-              >
-                <span>Buka Tgl {curTextDay} di Input Harian</span>
-                <ArrowRight className="h-3 w-3" />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="no-print inline-flex h-8 items-center gap-1.5 rounded-md border border-[#e5e5df] bg-white px-3 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
-              >
-                <Printer className="h-3.5 w-3.5" />
-                <span>Cetak Text</span>
-              </button>
+            <div className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-[#64748b]">
+                Format plain text siap dibaca dan disalin ke WhatsApp atau catatan operasional toko.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openDayInInputHarian(curTextDay, 'closing')}
+                  className="inline-flex h-8 items-center gap-1 rounded-xl bg-[#e6f7ee] px-3 text-xs font-semibold text-[#15803d] transition hover:bg-[#d1f0e0] cursor-pointer"
+                >
+                  <span>Buka Tgl {curTextDay} di Input Harian</span>
+                  <ArrowRight className="h-3 w-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="no-print inline-flex h-8 items-center gap-1.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>Cetak Text</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -874,21 +845,23 @@ export const TabelBulananPage: React.FC = () => {
       {/* ITEM MONTHLY DETAIL MODAL */}
       {selectedItem && (
         <div
-          className="fixed inset-0 z-[950] flex items-center justify-center bg-[#111614]/45 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[950] flex items-center justify-center bg-[#0d2530]/45 p-4 backdrop-blur-[2px]"
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedItemId(null);
           }}
         >
-          <div className="flex max-h-[86vh] w-full max-w-[740px] flex-col overflow-hidden rounded-xl border border-[#e5e5df] bg-white shadow-[0_24px_60px_rgba(17,22,20,0.18)]">
-            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#e5e5df] px-5 py-4">
+          <div className="flex max-h-[86vh] w-full max-w-[740px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_rgba(13,37,48,0.22)]">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#edf2f0] px-5 py-4">
               <div>
-                <h2 className="font-display text-base font-semibold text-[#141816]">
+                <h2 className="font-display text-base font-bold text-[#13222b]">
                   {selectedItem.nama}
                   {!selectedItem.aktif && (
-                    <span className="ml-2 text-xs font-medium text-[#b45309]">(Arsip)</span>
+                    <span className="ml-2 rounded-md bg-[#fef3c7] px-2 py-0.5 text-[11px] font-semibold text-[#b45309]">
+                      Arsip
+                    </span>
                   )}
                 </h2>
-                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-[#7c8580]">
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-[#64748b]">
                   <span className="font-mono-num">{selectedItem.id}</span>
                   <span aria-hidden="true">·</span>
                   <span>{selectedItem.kat}</span>
@@ -909,7 +882,7 @@ export const TabelBulananPage: React.FC = () => {
                 type="button"
                 onClick={() => setSelectedItemId(null)}
                 aria-label="Tutup detail item"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-[#7c8580] hover:bg-[#f3f3ee] hover:text-[#141816] cursor-pointer"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748b] transition hover:bg-[#f3f7f5] hover:text-[#13222b] cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -931,24 +904,24 @@ export const TabelBulananPage: React.FC = () => {
 
               return (
                 <>
-                  <div className="grid shrink-0 grid-cols-2 divide-x divide-[#efefea] border-b border-[#e5e5df] bg-[#fafaf8] sm:grid-cols-4">
+                  <div className="grid shrink-0 grid-cols-2 divide-x divide-[#edf2f0] border-b border-[#edf2f0] bg-[#f7faf9] sm:grid-cols-4">
                     <div className="px-4 py-3">
-                      <div className="text-[11px] text-[#7c8580]">Stok Awal</div>
-                      <div className="font-mono-num mt-0.5 text-[15px] font-semibold text-[#141816]">
+                      <div className="text-[11px] font-medium text-[#64748b]">Stok Awal</div>
+                      <div className="font-mono-num mt-0.5 text-[15px] font-bold text-[#13222b]">
                         {st && hasVal(st.awal) ? `${formatNum(st.awal)} ${sat}` : '–'}
                       </div>
                     </div>
                     <div className="px-4 py-3">
-                      <div className="text-[11px] text-[#7c8580]">Total Datang</div>
-                      <div className="font-mono-num mt-0.5 text-[15px] font-semibold text-[#141816]">
+                      <div className="text-[11px] font-medium text-[#64748b]">Total Datang</div>
+                      <div className="font-mono-num mt-0.5 text-[15px] font-bold text-[#13222b]">
                         {st && st.datangDaysCount > 0 ? `+${formatNum(st.totalDatang)} ${sat}` : '–'}
                       </div>
                     </div>
                     <div className="px-4 py-3">
-                      <div className="text-[11px] text-[#7c8580]">Total Pemakaian</div>
+                      <div className="text-[11px] font-medium text-[#64748b]">Total Pemakaian</div>
                       <div
-                        className={`font-mono-num mt-0.5 text-[15px] font-semibold ${
-                          st && st.totalPemakaian < 0 ? 'text-[#b91c1c]' : 'text-[#14533c]'
+                        className={`font-mono-num mt-0.5 text-[15px] font-bold ${
+                          st && st.totalPemakaian < 0 ? 'text-[#dc2626]' : 'text-[#15803d]'
                         }`}
                       >
                         {st && st.pemakaianDaysCount > 0
@@ -957,19 +930,19 @@ export const TabelBulananPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="px-4 py-3">
-                      <div className="text-[11px] text-[#7c8580]">
+                      <div className="text-[11px] font-medium text-[#64748b]">
                         Closing Terakhir{st?.lastClosingDay ? ` (Tgl ${st.lastClosingDay})` : ''}
                       </div>
-                      <div className="font-mono-num mt-0.5 text-[15px] font-semibold text-[#141816]">
+                      <div className="font-mono-num mt-0.5 text-[15px] font-bold text-[#13222b]">
                         {st && hasVal(st.lastClosing) ? `${formatNum(st.lastClosing)} ${sat}` : '–'}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[#e5e5df] px-5 py-2.5 text-xs">
-                    <span className="text-[#565e59]">
+                  <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[#edf2f0] px-5 py-2.5 text-xs">
+                    <span className="text-[#64748b]">
                       Menampilkan{' '}
-                      <strong className="font-mono-num font-semibold text-[#141816]">
+                      <strong className="font-mono-num font-bold text-[#13222b]">
                         {displayRows.length}
                       </strong>{' '}
                       dari {summary.nd} tanggal
@@ -978,7 +951,7 @@ export const TabelBulananPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setDetailShowAllDays((v) => !v)}
-                        className="h-7 rounded-md border border-[#e5e5df] bg-white px-2.5 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
+                        className="h-7.5 rounded-xl bg-[#f3f7f5] px-3 text-xs font-semibold text-[#13222b] transition hover:bg-[#e1ebe7] cursor-pointer"
                       >
                         {detailShowAllDays ? 'Hari Bertransaksi Saja' : 'Tampilkan Semua Tanggal'}
                       </button>
@@ -988,7 +961,7 @@ export const TabelBulananPage: React.FC = () => {
                           setSelectedItemId(null);
                           navigateTo('aw', { ym });
                         }}
-                        className="h-7 rounded-md border border-[#e5e5df] bg-white px-2.5 text-xs font-medium text-[#14533c] hover:bg-[#ecf5f1] cursor-pointer"
+                        className="h-7.5 rounded-xl bg-[#e6f7ee] px-3 text-xs font-semibold text-[#15803d] transition hover:bg-[#d1f0e0] cursor-pointer"
                       >
                         Stok Awal
                       </button>
@@ -997,47 +970,47 @@ export const TabelBulananPage: React.FC = () => {
 
                   <div className="dg-scroll min-h-0 flex-1 overflow-y-auto px-5 py-3">
                     {displayRows.length === 0 ? (
-                      <div className="py-10 text-center text-xs text-[#7c8580]">
+                      <div className="py-10 text-center text-xs text-[#64748b]">
                         Belum ada transaksi barang datang atau closing untuk item ini pada{' '}
                         {getMonthLabel(ym)}.
                       </div>
                     ) : (
-                      <div className="overflow-x-auto rounded-lg border border-[#e5e5df]">
+                      <div className="overflow-x-auto rounded-xl border border-[#edf2f0]">
                         <table className="w-full border-collapse text-xs">
                           <thead>
-                            <tr className="border-b border-[#e5e5df] bg-[#fafaf8] text-[11px] font-medium text-[#565e59]">
-                              <th className="px-3 py-2 text-left">Tanggal</th>
-                              <th className="px-3 py-2 text-right">Barang Datang</th>
-                              <th className="px-3 py-2 text-right">Stok Siap Jual</th>
-                              <th className="px-3 py-2 text-right">Closing Fisik</th>
-                              <th className="px-3 py-2 text-right">Pemakaian</th>
-                              <th className="px-3 py-2 text-right">Input Harian</th>
+                            <tr className="border-b border-[#edf2f0] bg-[#f7faf9] text-[11px] font-bold uppercase tracking-[0.04em] text-[#64748b]">
+                              <th className="px-3 py-2.5 text-left">Tanggal</th>
+                              <th className="px-3 py-2.5 text-right">Barang Datang</th>
+                              <th className="px-3 py-2.5 text-right">Stok Siap Jual</th>
+                              <th className="px-3 py-2.5 text-right">Closing Fisik</th>
+                              <th className="px-3 py-2.5 text-right">Pemakaian</th>
+                              <th className="px-3 py-2.5 text-right">Input Harian</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-[#efefea]">
+                          <tbody className="divide-y divide-[#edf2f0]">
                             {displayRows.map((r) => {
                               const dow = getDayOfWeek(ym, r.d);
                               const isNeg = r.usage !== null && r.usage < 0;
                               return (
-                                <tr key={r.d} className={isNeg ? 'bg-[#fff5f5]' : ''}>
-                                  <td className="px-3 py-2 font-medium text-[#141816] whitespace-nowrap">
+                                <tr key={r.d} className={isNeg ? 'bg-[#fef2f2]' : 'hover:bg-[#f7faf9]'}>
+                                  <td className="px-3 py-2 font-semibold text-[#13222b] whitespace-nowrap">
                                     <span className="font-mono-num">{r.d}</span>{' '}
-                                    <span className="font-normal text-[#7c8580]">
+                                    <span className="font-medium text-[#64748b]">
                                       {DAY_NAMES[dow]}
                                     </span>
                                   </td>
-                                  <td className="font-mono-num px-3 py-2 text-right text-[#141816]">
+                                  <td className="font-mono-num px-3 py-2 text-right text-[#13222b]">
                                     {hasVal(r.datang) ? formatNum(r.datang) : '–'}
                                   </td>
-                                  <td className="font-mono-num px-3 py-2 text-right text-[#565e59]">
+                                  <td className="font-mono-num px-3 py-2 text-right text-[#475569]">
                                     {r.total !== null ? formatNum(r.total) : '–'}
                                   </td>
-                                  <td className="font-mono-num px-3 py-2 text-right font-semibold text-[#141816]">
+                                  <td className="font-mono-num px-3 py-2 text-right font-bold text-[#13222b]">
                                     {hasVal(r.closing) ? formatNum(r.closing) : '–'}
                                   </td>
                                   <td
-                                    className={`font-mono-num px-3 py-2 text-right font-semibold ${
-                                      isNeg ? 'text-[#b91c1c]' : 'text-[#14533c]'
+                                    className={`font-mono-num px-3 py-2 text-right font-bold ${
+                                      isNeg ? 'text-[#dc2626]' : 'text-[#15803d]'
                                     }`}
                                   >
                                     {r.usage !== null ? formatNum(r.usage) : '–'}
@@ -1049,7 +1022,7 @@ export const TabelBulananPage: React.FC = () => {
                                         setSelectedItemId(null);
                                         openDayInInputHarian(r.d, 'closing');
                                       }}
-                                      className="font-medium text-[#14533c] hover:underline cursor-pointer"
+                                      className="font-semibold text-[#15803d] hover:underline cursor-pointer"
                                     >
                                       Buka Tgl {r.d}
                                     </button>
@@ -1063,14 +1036,14 @@ export const TabelBulananPage: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="flex shrink-0 items-center justify-between border-t border-[#e5e5df] bg-[#fafaf8] px-5 py-3">
-                    <span className="text-xs text-[#7c8580]">
+                  <div className="flex shrink-0 items-center justify-between border-t border-[#edf2f0] bg-[#f7faf9] px-5 py-3">
+                    <span className="text-xs text-[#64748b]">
                       Seluruh angka dihitung langsung dari Stok Awal dan Input Harian.
                     </span>
                     <button
                       type="button"
                       onClick={() => setSelectedItemId(null)}
-                      className="h-8 rounded-md border border-[#e5e5df] bg-white px-3.5 text-xs font-medium text-[#141816] hover:bg-[#f3f3ee] cursor-pointer"
+                      className="h-8.5 rounded-xl bg-white px-4 text-xs font-semibold text-[#13222b] shadow-xs transition hover:bg-[#e1ebe7] cursor-pointer"
                     >
                       Tutup
                     </button>
