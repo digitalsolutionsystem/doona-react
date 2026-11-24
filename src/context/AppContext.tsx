@@ -33,21 +33,13 @@ import {
   apiService,
   clearSessionStorage,
   computeDataFingerprint,
-  getApiUrl,
-  getStoredLocalPwd,
   getStoredToken,
   getStoredUser,
-  hasGoogleAppsScriptHost,
-  isApiConfigured,
   readLocalCache,
   readPreRestoreBackup,
   readSyncMeta,
-  resetApiUrl,
-  setApiUrl as persistApiUrl,
-  setStoredLocalPwd,
   setStoredToken,
   setStoredUser,
-  validateApiUrlFormat,
   writeLocalCache,
   writePreRestoreBackup,
   writeSyncMeta,
@@ -72,6 +64,7 @@ import type {
   PayrollCycle,
   PengaturanSubTab,
   ShiftScheduleConfig,
+  SqliteDatabaseInfo,
   UserProfile,
 } from '../types/app';
 
@@ -165,7 +158,11 @@ interface AppContextValue {
   isViewer: boolean;
   isLocked: boolean;
   dbMode: DbConnectionMode;
-  apiUrl: string;
+  sqliteAvailable: boolean;
+  sqliteChecking: boolean;
+  sqliteNeedsSetup: boolean;
+  sqliteEnvManaged: boolean;
+  sqliteInfo: SqliteDatabaseInfo | null;
   sync: SyncIndicator;
   syncMeta: SyncMetadata;
   syncConflict: SyncConflictInfo | null;
@@ -280,24 +277,35 @@ interface AppContextValue {
   restoreFromPreRestoreBackup: () => Promise<{ ok: boolean; error?: string }>;
   saveNow: (overrideData?: AppData) => Promise<boolean>;
   reloadFromCloud: (options?: { forceOverwriteLocal?: boolean }) => Promise<void>;
+  refreshSqliteInfo: () => Promise<SqliteDatabaseInfo | null>;
   checkAndSyncCloud: (intent: 'pull' | 'push' | 'retry') => Promise<SyncCheckResult>;
   resolveSyncConflict: (
     resolution: 'use_cloud' | 'use_local' | 'cancel'
   ) => Promise<{ ok: boolean; message: string }>;
+  setupInitialAdmin: (
+    username: string,
+    nama: string,
+    password: string
+  ) => Promise<{ ok: boolean; error?: string }>;
   loginWithCredentials: (
     username: string,
-    password: string,
-    remember: boolean
-  ) => Promise<{ ok: boolean; error?: string; connError?: boolean }>;
+    password: string
+  ) => Promise<{ ok: boolean; error?: string; connError?: boolean; needsSetup?: boolean }>;
   enterLocalMode: () => void;
   logout: () => void;
   changePassword: (
     curr: string,
     nextPwd: string
   ) => Promise<{ ok: boolean; message: string }>;
-  updateApiUrl: (url: string) => Promise<{ ok: boolean; message: string }>;
-  resetConnectionUrl: () => void;
-  pingConnection: (url?: string) => ReturnType<typeof apiService.ping>;
+  vacuumSqliteDb: () => Promise<{ ok: boolean; message: string }>;
+  downloadSqliteBackup: () => Promise<{ ok: boolean; message: string }>;
+  restoreSqliteFile: (file: File) => Promise<{
+    ok: boolean;
+    error?: string;
+    preBackupJson?: string;
+    preBackupFilename?: string;
+    summary?: BackupDataSummary;
+  }>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -327,16 +335,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [hasUnsavedAwal, setHasUnsavedAwal] = useState<boolean>(false);
   const [hasUnsavedOmset, setHasUnsavedOmset] = useState<boolean>(false);
 
-  // Auth & Database connection states
-  const [apiUrl, setApiUrlState] = useState<string>(() => getApiUrl());
+  // Auth & SQLite Database connection states (Bearer token kept strictly in JS memory)
+  const [sqliteAvailable, setSqliteAvailable] = useState<boolean>(true);
+  const [sqliteChecking, setSqliteChecking] = useState<boolean>(true);
+  const [sqliteNeedsSetup, setSqliteNeedsSetup] = useState<boolean>(false);
+  const [sqliteEnvManaged, setSqliteEnvManaged] = useState<boolean>(false);
+  const [sqliteInfo, setSqliteInfo] = useState<SqliteDatabaseInfo | null>(null);
+
   const [user, setUser] = useState<UserProfile | null>(() => {
     const stored = getStoredUser();
     if (stored) return stored;
-    return { username: 'lokal', nama: 'Mode Lokal', role: 'admin' };
+    return { username: 'lokal', nama: 'Mode Cache Browser', role: 'admin' };
   });
-  const [isLocked, setIsLocked] = useState<boolean>(false);
   const [hasCloudToken, setHasCloudToken] = useState<boolean>(() => Boolean(getStoredToken()));
-  const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
+  const [isLocked, setIsLocked] = useState<boolean>(() => !getStoredToken());
+  const [showLoginModal, setShowLoginModal] = useState<boolean>(() => !getStoredToken());
   const [showChangePwdModal, setShowChangePwdModal] = useState<boolean>(false);
   const [preRestoreBackup, setPreRestoreBackup] = useState<PreRestoreBackupSnapshot | null>(() =>
     readPreRestoreBackup()
@@ -345,7 +358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [syncConflict, setSyncConflict] = useState<SyncConflictInfo | null>(null);
 
   const [sync, setSync] = useState<SyncIndicator>({
-    text: 'Memuat…',
+    text: 'Menghubungkan SQLite…',
     isError: false,
     isSyncing: false,
     lastSyncAt: null,
@@ -383,13 +396,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [hasAbsDraft, hasUnsavedIn, hasUnsavedOmset, hasUnsavedAwal]);
 
   const dbMode: DbConnectionMode = useMemo(() => {
-    if (hasGoogleAppsScriptHost()) return 'gas';
-    if (!apiUrl) return 'local';
-    return hasCloudToken ? 'cloud_connected' : 'cloud_unauth';
-  }, [apiUrl, hasCloudToken]);
+    if (!sqliteAvailable) return 'local';
+    return hasCloudToken ? 'sqlite_connected' : 'sqlite_unauth';
+  }, [sqliteAvailable, hasCloudToken]);
 
   const isViewer = useMemo(() => {
-    if (dbMode === 'local' || dbMode === 'cloud_unauth') return false;
+    if (dbMode === 'local' || dbMode === 'sqlite_unauth') return false;
     return Boolean(user && user.role && user.role !== 'admin');
   }, [dbMode, user]);
 
@@ -398,6 +410,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const handleAuthExpired = useCallback(() => {
     clearSessionStorage();
     setHasCloudToken(false);
+    setSqliteInfo(null);
     setIsLocked(true);
     setShowLoginModal(true);
     setSync({
@@ -408,123 +421,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, []);
 
-  const reloadFromCloud = useCallback(
-    async (options?: { forceOverwriteLocal?: boolean }) => {
-      setSync((prev) => ({
-        ...prev,
-        text: 'Menyinkronkan data…',
-        isError: false,
-        isSyncing: true,
-      }));
-      const cloudRes = await apiService.fetchCloudRaw();
-      if (cloudRes.authExpired) {
-        handleAuthExpired();
-        return;
-      }
-
-      const localNormalized = normalizeAppData(readLocalCache() || stateRef.current);
-
-      if (cloudRes.ok && cloudRes.data && !cloudRes.isEmptyCloud) {
-        const cloudNormalized = normalizeAppData(cloudRes.data);
-        const localFp = computeDataFingerprint(localNormalized);
-        const cloudFp = computeDataFingerprint(cloudNormalized);
-
-        // Pencegahan penimpaan data lokal yang belum tersinkron secara tidak sengaja
-        if (
-          !options?.forceOverwriteLocal &&
-          syncMetaRef.current.pendingLocalChanges &&
-          localFp !== cloudFp
-        ) {
-          setSyncConflict({
-            reason: 'pull_with_unsynced_local',
-            message:
-              'Terdapat perubahan lokal yang belum tersinkron ke Google Sheets dan berbeda dengan data Cloud. Pilih sumber data yang ingin dipertahankan agar data lokal tidak tertimpa.',
-            localData: localNormalized,
-            cloudData: cloudNormalized,
-            localSummary: summarizeAppData(localNormalized),
-            cloudSummary: summarizeAppData(cloudNormalized),
-            detectedAt: new Date().toISOString(),
-          });
-          setSync({
-            text: 'Konflik sinkronisasi — perlu konfirmasi',
-            isError: true,
-            isSyncing: false,
-            lastSyncAt: null,
-          });
-          return;
-        }
-
-        if (localFp !== cloudFp && readLocalCache()) {
-          const snap = writePreRestoreBackup(
-            localNormalized,
-            'Cadangan lokal otomatis sebelum menarik data dari Google Sheets'
-          );
-          if (snap) setPreRestoreBackup(snap);
-        }
-
-        stateRef.current = cloudNormalized;
-        setState(cloudNormalized);
-        writeLocalCache(cloudNormalized);
-        setSyncConflict(null);
-
-        const nowIso = new Date().toISOString();
-        updateSyncMeta({
-          lastCloudSyncAt: nowIso,
-          lastCloudFingerprint: cloudFp,
-          pendingLocalChanges: false,
-          lastError: null,
-        });
-
-        setSync({
-          text: 'Tersimpan di Cloud',
-          isError: false,
-          isSyncing: false,
-          lastSyncAt: new Date().toLocaleTimeString('id-ID', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-        });
-
-        const profileRes = await apiService.me();
-        if (profileRes?.success && profileRes.user) {
-          setUser(profileRes.user);
-          setStoredUser(profileRes.user);
-        }
-        return;
-      }
-
-      // Cloud kosong atau offline/lokal -> pertahankan data lokal tanpa menghapus apa pun
-      setState(localNormalized);
-      if (cloudRes.error) {
-        updateSyncMeta({ lastError: cloudRes.error });
-        setSync({
-          text: 'Mode Lokal (Gagal Sinkron)',
-          isError: true,
-          isSyncing: false,
-          lastSyncAt: null,
-        });
-      } else if (cloudRes.ok && cloudRes.isEmptyCloud) {
-        setSync({
-          text: 'Cloud kosong — data lokal dipertahankan',
-          isError: false,
-          isSyncing: false,
-          lastSyncAt: null,
-        });
-      } else {
-        setSync({
-          text: apiUrl && !hasCloudToken ? 'Cache Lokal (Belum Login Cloud)' : 'Tersimpan Lokal',
-          isError: false,
-          isSyncing: false,
-          lastSyncAt: null,
-        });
-      }
-    },
-    [apiUrl, hasCloudToken, handleAuthExpired, updateSyncMeta]
-  );
-
-  useEffect(() => {
-    reloadFromCloud();
-  }, [reloadFromCloud]);
+  const refreshSqliteInfo = useCallback(async (): Promise<SqliteDatabaseInfo | null> => {
+    if (!getStoredToken()) return null;
+    const res = await apiService.getSqliteInfo();
+    if (res.authExpired) {
+      handleAuthExpired();
+      return null;
+    }
+    if (res.ok && res.info) {
+      setSqliteInfo(res.info);
+      return res.info;
+    }
+    return null;
+  }, [handleAuthExpired]);
 
   const saveNow = useCallback(
     async (overrideData?: AppData): Promise<boolean> => {
@@ -541,35 +450,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const nowIso = new Date().toISOString();
       updateSyncMeta({ lastLocalWriteAt: nowIso });
-      setSync((prev) => ({ ...prev, text: 'Menyimpan…', isError: false, isSyncing: true }));
+      setSync((prev) => ({ ...prev, text: 'Menyimpan ke SQLite…', isError: false, isSyncing: true }));
 
       const res = await apiService.save(payload, isViewer);
       if (res.authExpired) {
         updateSyncMeta({
           pendingLocalChanges: true,
-          lastError: 'Sesi login berakhir saat menyimpan ke cloud.',
+          lastError: 'Sesi login berakhir saat menyimpan ke SQLite.',
         });
         handleAuthExpired();
         return false;
       }
       if (res.ok) {
         const fp = computeDataFingerprint(payload);
-        if (res.mode === 'cloud') {
+        if (res.mode === 'sqlite') {
           updateSyncMeta({
-            lastCloudSyncAt: nowIso,
+            lastCloudSyncAt: res.savedAt || nowIso,
             lastCloudFingerprint: fp,
             pendingLocalChanges: false,
             lastError: null,
           });
+          void refreshSqliteInfo();
         } else {
-          // Mode lokal murni atau cloud belum login: tandai ada perubahan lokal jika cloud dikonfigurasi
           updateSyncMeta({
-            pendingLocalChanges: Boolean(apiUrl || hasGoogleAppsScriptHost()),
+            pendingLocalChanges: sqliteAvailable,
             lastError: null,
           });
         }
         setSync({
-          text: res.mode === 'cloud' ? 'Tersimpan di Cloud' : 'Tersimpan Lokal',
+          text: res.mode === 'sqlite' ? 'Tersimpan di SQLite' : 'Tersimpan di Cache Browser',
           isError: false,
           isSyncing: false,
           lastSyncAt: new Date().toLocaleTimeString('id-ID', {
@@ -584,8 +493,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         res.mode === 'readonly'
           ? 'Akun hanya-baca: ditolak oleh otorisasi server.'
           : res.mode === 'offline'
-            ? 'Koneksi terputus — perubahan aman di localStorage dan siap disinkronisasi ulang.'
-            : 'Gagal menyimpan ke Google Sheets — perubahan aman di localStorage.';
+            ? 'Server SQLite tidak terjangkau — perubahan aman di cache browser.'
+            : res.error || 'Gagal menyimpan ke SQLite — perubahan aman di cache browser.';
 
       updateSyncMeta({
         pendingLocalChanges: res.mode !== 'readonly',
@@ -597,16 +506,170 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           res.mode === 'readonly'
             ? 'Akun hanya-baca: ditolak server'
             : res.mode === 'offline'
-              ? 'Tersimpan Lokal (Offline)'
-              : 'Gagal simpan ke cloud',
+              ? 'Cache Browser (Server Offline)'
+              : 'Gagal simpan ke SQLite',
         isError: true,
         isSyncing: false,
         lastSyncAt: null,
       });
       return false;
     },
-    [apiUrl, isViewer, handleAuthExpired, updateSyncMeta]
+    [sqliteAvailable, isViewer, handleAuthExpired, updateSyncMeta, refreshSqliteInfo]
   );
+
+  const reloadFromCloud = useCallback(
+    async (options?: { forceOverwriteLocal?: boolean }) => {
+      if (!getStoredToken()) {
+        setSync({
+          text: sqliteAvailable ? 'SQLite Siap (Belum Login)' : 'Mode Cache Browser',
+          isError: false,
+          isSyncing: false,
+          lastSyncAt: null,
+        });
+        return;
+      }
+
+      setSync((prev) => ({
+        ...prev,
+        text: 'Memuat data dari SQLite…',
+        isError: false,
+        isSyncing: true,
+      }));
+
+      const dbRes = await apiService.fetchCloudRaw();
+      if (dbRes.authExpired) {
+        handleAuthExpired();
+        return;
+      }
+
+      const localNormalized = normalizeAppData(readLocalCache() || stateRef.current);
+
+      if (dbRes.ok && dbRes.data && !dbRes.isEmptyCloud) {
+        const sqliteNormalized = normalizeAppData(dbRes.data);
+        const localFp = computeDataFingerprint(localNormalized);
+        const sqliteFp = computeDataFingerprint(sqliteNormalized);
+
+        if (
+          !options?.forceOverwriteLocal &&
+          syncMetaRef.current.pendingLocalChanges &&
+          localFp !== sqliteFp
+        ) {
+          setSyncConflict({
+            reason: 'pull_with_unsynced_local',
+            message:
+              'Terdapat perubahan cache browser yang belum tersimpan ke SQLite dan berbeda dengan isi file SQLite. Pilih sumber data yang ingin dipertahankan.',
+            localData: localNormalized,
+            cloudData: sqliteNormalized,
+            localSummary: summarizeAppData(localNormalized),
+            cloudSummary: summarizeAppData(sqliteNormalized),
+            detectedAt: new Date().toISOString(),
+          });
+          setSync({
+            text: 'Konflik data — perlu konfirmasi',
+            isError: true,
+            isSyncing: false,
+            lastSyncAt: null,
+          });
+          return;
+        }
+
+        stateRef.current = sqliteNormalized;
+        setState(sqliteNormalized);
+        writeLocalCache(sqliteNormalized);
+        setSyncConflict(null);
+
+        const nowIso = new Date().toISOString();
+        updateSyncMeta({
+          lastCloudSyncAt: nowIso,
+          lastCloudFingerprint: sqliteFp,
+          pendingLocalChanges: false,
+          lastError: null,
+        });
+
+        setSync({
+          text: 'Tersimpan di SQLite',
+          isError: false,
+          isSyncing: false,
+          lastSyncAt: new Date().toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+        });
+
+        const [profileRes] = await Promise.all([apiService.me(), refreshSqliteInfo()]);
+        if (profileRes?.success && profileRes.user) {
+          setUser(profileRes.user);
+          setStoredUser(profileRes.user);
+        }
+        return;
+      }
+
+      // Database SQLite baru & masih kosong -> langsung seed dengan data awal/cache lokal
+      if (dbRes.ok && dbRes.isEmptyCloud) {
+        stateRef.current = localNormalized;
+        setState(localNormalized);
+        writeLocalCache(localNormalized);
+        const seeded = await saveNow(localNormalized);
+        await refreshSqliteInfo();
+        if (!seeded) {
+          setSync({
+            text: 'SQLite kosong — gagal menyimpan data awal',
+            isError: true,
+            isSyncing: false,
+            lastSyncAt: null,
+          });
+        }
+        return;
+      }
+
+      setState(localNormalized);
+      if (dbRes.error) {
+        updateSyncMeta({ lastError: dbRes.error });
+        setSync({
+          text: 'Cache Browser (Gagal Muat SQLite)',
+          isError: true,
+          isSyncing: false,
+          lastSyncAt: null,
+        });
+      }
+    },
+    [sqliteAvailable, handleAuthExpired, updateSyncMeta, refreshSqliteInfo, saveNow]
+  );
+
+  // Deteksi status backend SQLite lokal saat aplikasi dibuka
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setSqliteChecking(true);
+      const health = await apiService.checkSqliteHealth();
+      if (!active) return;
+      if (health && health.ok) {
+        setSqliteAvailable(true);
+        setSqliteNeedsSetup(Boolean(health.needsSetup));
+        setSqliteEnvManaged(Boolean(health.envPasswordManaged));
+        setSync({
+          text: health.needsSetup ? 'SQLite Baru · Setup Admin' : 'SQLite Siap (Belum Login)',
+          isError: false,
+          isSyncing: false,
+          lastSyncAt: null,
+        });
+      } else {
+        setSqliteAvailable(false);
+        setSqliteNeedsSetup(false);
+        setSqliteEnvManaged(false);
+        setSync({
+          text: 'Mode Cache Browser (SQLite Offline)',
+          isError: false,
+          isSyncing: false,
+          lastSyncAt: null,
+        });
+      }
+      setSqliteChecking(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const checkAndSyncCloud = useCallback(
     async (intent: 'pull' | 'push' | 'retry'): Promise<SyncCheckResult> => {
@@ -614,40 +677,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return {
           ok: false,
           status: 'readonly',
-          message: 'Akun Viewer hanya memiliki akses baca dan tidak dapat mengunggah ke server.',
+          message: 'Akun Viewer hanya memiliki akses baca dan tidak dapat menulis ke SQLite.',
         };
       }
 
-      if (!isApiConfigured() || (!hasGoogleAppsScriptHost() && !getStoredToken())) {
+      if (!sqliteAvailable || !getStoredToken()) {
         return {
           ok: false,
           status: 'unconfigured',
-          message:
-            'Hubungkan Web App URL dan login ke akun Google Sheets terlebih dahulu untuk melakukan sinkronisasi.',
+          message: 'Login ke akun SQLite lokal terlebih dahulu untuk menyinkronkan data.',
         };
       }
 
       setSync((prev) => ({
         ...prev,
-        text: 'Memeriksa status data Cloud…',
+        text: 'Memeriksa database SQLite…',
         isError: false,
         isSyncing: true,
       }));
 
-      const cloudRes = await apiService.fetchCloudRaw();
-      if (cloudRes.authExpired) {
+      const dbRes = await apiService.fetchCloudRaw();
+      if (dbRes.authExpired) {
         handleAuthExpired();
         return {
           ok: false,
           status: 'auth_expired',
-          message: 'Sesi login Google Sheets berakhir. Silakan masuk ulang.',
+          message: 'Sesi login berakhir. Silakan masuk ulang.',
         };
       }
-      if (!cloudRes.ok) {
-        const msg = cloudRes.error || 'Tidak dapat menjangkau Google Sheets. Data lokal tetap aman.';
+      if (!dbRes.ok) {
+        const msg = dbRes.error || 'Tidak dapat menjangkau server SQLite lokal.';
         updateSyncMeta({ lastError: msg });
         setSync({
-          text: 'Gagal memeriksa Cloud (Offline)',
+          text: 'Server SQLite tidak merespons',
           isError: true,
           isSyncing: false,
           lastSyncAt: null,
@@ -658,13 +720,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const localData = stateRef.current;
       const localFp = computeDataFingerprint(localData);
 
-      // Kasus 1: Spreadsheet Cloud masih kosong (belum pernah diisi)
-      if (cloudRes.isEmptyCloud || !cloudRes.data) {
+      if (dbRes.isEmptyCloud || !dbRes.data) {
         if (intent === 'pull') {
           setSyncConflict({
             reason: 'cloud_empty',
             message:
-              'Database Google Sheets saat ini masih kosong. Tarik data dibatalkan agar data lokal tidak terhapus. Anda dapat mengunggah data lokal ke Sheets.',
+              'Database SQLite saat ini masih kosong. Anda dapat menyimpan data lokal saat ini ke file SQLite.',
             localData,
             cloudData: null,
             localSummary: summarizeAppData(localData),
@@ -672,7 +733,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             detectedAt: new Date().toISOString(),
           });
           setSync({
-            text: 'Cloud masih kosong',
+            text: 'Database SQLite masih kosong',
             isError: true,
             isSyncing: false,
             lastSyncAt: null,
@@ -680,7 +741,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return {
             ok: false,
             status: 'conflict',
-            message: 'Cloud masih kosong — konfirmasi apakah ingin mengunggah data lokal.',
+            message: 'Database SQLite masih kosong — konfirmasi untuk menyimpan data saat ini.',
           };
         }
 
@@ -689,30 +750,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? {
               ok: true,
               status: 'pushed',
-              message: 'Database Google Sheets baru berhasil diisi dengan data lokal.',
+              message: 'Data operasional berhasil disimpan ke database SQLite.',
             }
           : {
               ok: false,
               status: 'error',
-              message: 'Gagal mengunggah data lokal ke Google Sheets.',
+              message: 'Gagal menulis data ke database SQLite.',
             };
       }
 
-      const cloudData = normalizeAppData(cloudRes.data);
-      const cloudFp = computeDataFingerprint(cloudData);
+      const sqliteData = normalizeAppData(dbRes.data);
+      const sqliteFp = computeDataFingerprint(sqliteData);
 
-      // Kasus 2: Data Lokal & Cloud identik (sudah sinkron)
-      if (localFp === cloudFp) {
+      if (localFp === sqliteFp) {
         const nowIso = new Date().toISOString();
         setSyncConflict(null);
         updateSyncMeta({
           lastCloudSyncAt: nowIso,
-          lastCloudFingerprint: cloudFp,
+          lastCloudFingerprint: sqliteFp,
           pendingLocalChanges: false,
           lastError: null,
         });
+        await refreshSqliteInfo();
         setSync({
-          text: 'Tersimpan di Cloud',
+          text: 'Tersimpan di SQLite',
           isError: false,
           isSyncing: false,
           lastSyncAt: new Date().toLocaleTimeString('id-ID', {
@@ -723,25 +784,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return {
           ok: true,
           status: 'in_sync',
-          message: 'Data lokal dan Google Sheets sudah identik (sinkron).',
+          message: 'Data layar dan file SQLite sudah identik (sinkron).',
         };
       }
 
-      // Kasus 3: Tarik data dari Cloud (Pull)
       if (intent === 'pull') {
         if (syncMetaRef.current.pendingLocalChanges) {
           setSyncConflict({
             reason: 'pull_with_unsynced_local',
             message:
-              'Anda memiliki perubahan lokal yang belum tersinkron dan berbeda dengan Cloud. Konfirmasikan data mana yang akan digunakan.',
+              'Ada perubahan cache browser yang belum ditulis ke SQLite. Pilih versi yang ingin digunakan.',
             localData,
-            cloudData,
+            cloudData: sqliteData,
             localSummary: summarizeAppData(localData),
-            cloudSummary: summarizeAppData(cloudData),
+            cloudSummary: summarizeAppData(sqliteData),
             detectedAt: new Date().toISOString(),
           });
           setSync({
-            text: 'Konflik sinkronisasi — perlu konfirmasi',
+            text: 'Konflik data — perlu konfirmasi',
             isError: true,
             isSyncing: false,
             lastSyncAt: null,
@@ -749,29 +809,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return {
             ok: false,
             status: 'conflict',
-            message: 'Terdeteksi perubahan lokal belum tersinkron. Pilih resolusi konflik.',
+            message: 'Terdeteksi perubahan belum tersimpan. Pilih sumber data.',
           };
         }
 
-        // Buat cadangan lokal otomatis sebelum menerapkan data Cloud
         const snap = writePreRestoreBackup(
           localData,
-          'Cadangan lokal otomatis sebelum tarik data dari Google Sheets'
+          'Cadangan otomatis sebelum memuat ulang dari SQLite'
         );
         if (snap) setPreRestoreBackup(snap);
 
-        stateRef.current = cloudData;
-        setState(cloudData);
-        writeLocalCache(cloudData);
+        stateRef.current = sqliteData;
+        setState(sqliteData);
+        writeLocalCache(sqliteData);
         setSyncConflict(null);
         updateSyncMeta({
           lastCloudSyncAt: new Date().toISOString(),
-          lastCloudFingerprint: cloudFp,
+          lastCloudFingerprint: sqliteFp,
           pendingLocalChanges: false,
           lastError: null,
         });
+        await refreshSqliteInfo();
         setSync({
-          text: 'Tersimpan di Cloud',
+          text: 'Tersimpan di SQLite',
           isError: false,
           isSyncing: false,
           lastSyncAt: new Date().toLocaleTimeString('id-ID', {
@@ -782,52 +842,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return {
           ok: true,
           status: 'pulled',
-          message: 'Data terbaru berhasil ditarik dari Google Sheets (cadangan lokal dibuat).',
+          message: 'Data terbaru berhasil dimuat dari file SQLite.',
         };
       }
 
-      // Kasus 4: Unggah / Coba Sinkronisasi Ulang (Push / Retry)
-      // Fast-forward aman HANYA jika Cloud belum berubah sejak sinkron terakhir kita
-      const lastKnownCloudFp = syncMetaRef.current.lastCloudFingerprint;
-      if (lastKnownCloudFp && lastKnownCloudFp === cloudFp) {
-        const pushed = await saveNow(localData);
-        return pushed
-          ? {
-              ok: true,
-              status: 'pushed',
-              message: 'Perubahan lokal berhasil diunggah dan disinkronkan ke Google Sheets.',
-            }
-          : {
-              ok: false,
-              status: 'error',
-              message: 'Gagal mengunggah ke Google Sheets. Data tetap aman di localStorage.',
-            };
-      }
-
-      // Cloud berbeda dari baseline terakhir -> cegah penimpaan tak sengaja!
-      setSyncConflict({
-        reason: 'push_cloud_changed',
-        message:
-          'Data di Google Sheets berbeda dari versi sinkron terakhir (kemungkinan diubah dari perangkat lain). Periksa perbandingan berikut sebelum menimpa Cloud atau menarik data Cloud.',
-        localData,
-        cloudData,
-        localSummary: summarizeAppData(localData),
-        cloudSummary: summarizeAppData(cloudData),
-        detectedAt: new Date().toISOString(),
-      });
-      setSync({
-        text: 'Konflik data — konfirmasi diperlukan',
-        isError: true,
-        isSyncing: false,
-        lastSyncAt: null,
-      });
-      return {
-        ok: false,
-        status: 'conflict',
-        message: 'Terdeteksi perbedaan dengan Google Sheets. Konfirmasi diperlukan sebelum menimpa.',
-      };
+      const pushed = await saveNow(localData);
+      return pushed
+        ? {
+            ok: true,
+            status: 'pushed',
+            message: 'Seluruh data berhasil disimpan ke file SQLite lokal.',
+          }
+        : {
+            ok: false,
+            status: 'error',
+            message: 'Gagal menyimpan data ke file SQLite lokal.',
+          };
     },
-    [isViewer, handleAuthExpired, saveNow, updateSyncMeta]
+    [sqliteAvailable, isViewer, handleAuthExpired, saveNow, updateSyncMeta, refreshSqliteInfo]
   );
 
   const resolveSyncConflict = useCallback(
@@ -844,17 +876,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setSyncConflict(null);
           return {
             ok: false,
-            message: 'Data Cloud kosong sehingga tidak dapat dipakai menggantikan data lokal.',
+            message: 'File SQLite kosong sehingga tidak dapat menggantikan data saat ini.',
           };
         }
         const snap = writePreRestoreBackup(
           stateRef.current,
-          'Cadangan lokal otomatis sebelum resolusi konflik (pilih Cloud)'
+          'Cadangan lokal otomatis sebelum memuat versi SQLite'
         );
         if (snap) setPreRestoreBackup(snap);
 
         const nextData = normalizeAppData(syncConflict.cloudData);
-        const cloudFp = computeDataFingerprint(nextData);
+        const sqliteFp = computeDataFingerprint(nextData);
         stateRef.current = nextData;
         setState(nextData);
         writeLocalCache(nextData);
@@ -866,12 +898,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         updateSyncMeta({
           lastCloudSyncAt: new Date().toISOString(),
-          lastCloudFingerprint: cloudFp,
+          lastCloudFingerprint: sqliteFp,
           pendingLocalChanges: false,
           lastError: null,
         });
+        await refreshSqliteInfo();
         setSync({
-          text: 'Tersimpan di Cloud',
+          text: 'Tersimpan di SQLite',
           isError: false,
           isSyncing: false,
           lastSyncAt: new Date().toLocaleTimeString('id-ID', {
@@ -881,16 +914,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         return {
           ok: true,
-          message:
-            'Data Cloud berhasil diterapkan. Cadangan data lokal sebelumnya telah disimpan otomatis.',
+          message: 'Data dari file SQLite berhasil diterapkan.',
         };
       }
 
-      // resolution === 'use_local'
       if (isViewer) {
         return {
           ok: false,
-          message: 'Akun Viewer tidak memiliki izin menimpa data di Google Sheets.',
+          message: 'Akun Viewer tidak memiliki izin menulis ke file SQLite.',
         };
       }
       const pushed = await saveNow(stateRef.current);
@@ -898,15 +929,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSyncConflict(null);
         return {
           ok: true,
-          message: 'Data lokal berhasil diunggah dan disinkronkan ke Google Sheets.',
+          message: 'Data lokal berhasil ditulis ke file SQLite.',
         };
       }
       return {
         ok: false,
-        message: 'Gagal mengunggah data lokal ke Google Sheets. Data lokal tetap aman.',
+        message: 'Gagal menulis data lokal ke file SQLite.',
       };
     },
-    [syncConflict, isViewer, saveNow, updateSyncMeta]
+    [syncConflict, isViewer, saveNow, updateSyncMeta, refreshSqliteInfo]
   );
 
   const updateState = useCallback(
@@ -2207,13 +2238,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!cleaned) {
         return { ok: false, error: 'Teks laporan masih kosong.' };
       }
-      if (!isApiConfigured()) {
-        return {
-          ok: false,
-          error:
-            'Kirim Telegram membutuhkan koneksi ke Google Sheets / Apps Script (token bot disimpan aman di Code.gs). Hubungkan database terlebih dahulu.',
-        };
-      }
 
       setSync((prev) => ({
         ...prev,
@@ -2428,148 +2452,255 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDay(t.day);
   }, []);
 
-  const loginWithCredentials = useCallback(
-    async (username: string, password: string, remember: boolean) => {
+  const setupInitialAdmin = useCallback(
+    async (username: string, nama: string, password: string) => {
       const uname = username.trim();
+      const displayName = nama.trim() || 'Admin Doona Golf';
       const pwd = password.trim();
-      if (!uname) return { ok: false, error: 'Username wajib diisi.' };
+      if (!uname) return { ok: false, error: 'Username admin wajib diisi.' };
+      if (pwd.length < 6) return { ok: false, error: 'Password minimal 6 karakter.' };
 
-      if (isApiConfigured()) {
-        const res = await apiService.login(uname, pwd);
-        if (res.success) {
+      const res = await apiService.setupSqliteAdmin(uname, displayName, pwd);
+      if (res.success && res.token) {
+        try {
           localStorage.setItem('dg_last_user', uname);
-          sessionStorage.setItem('dg_auth', '1');
-          if (remember) localStorage.setItem('dg_auth', '1');
-          else localStorage.removeItem('dg_auth');
-          if (res.token) {
-            setStoredToken(res.token, remember);
-            setHasCloudToken(true);
-          }
-          const prof: UserProfile = res.user || { username: uname, nama: uname, role: 'admin' };
-          setStoredUser(prof, remember);
-          setUser(prof);
-          setIsLocked(false);
-          setShowLoginModal(false);
-
-          await reloadFromCloud();
-          return { ok: true };
+        } catch {
+          // ignore
         }
-        return {
-          ok: false,
-          error: res.error || 'Username atau password salah.',
-          connError: res.conn,
-        };
-      }
-
-      if (uname.toLowerCase() === 'admin' && pwd === getStoredLocalPwd()) {
-        const prof: UserProfile = { username: 'admin', nama: 'Admin (Lokal)', role: 'admin' };
-        sessionStorage.setItem('dg_auth', '1');
-        if (remember) localStorage.setItem('dg_auth', '1');
-        setStoredUser(prof, remember);
+        setStoredToken(res.token);
+        setHasCloudToken(true);
+        setSqliteNeedsSetup(false);
+        const prof: UserProfile = res.user || { username: uname, nama: displayName, role: 'admin' };
+        setStoredUser(prof);
         setUser(prof);
         setIsLocked(false);
         setShowLoginModal(false);
-        setSync({ text: 'Tersimpan Lokal', isError: false, isSyncing: false, lastSyncAt: null });
+
+        await reloadFromCloud({ forceOverwriteLocal: true });
         return { ok: true };
       }
 
-      return { ok: false, error: 'Username atau password salah. (Mode lokal: username "admin")' };
+      return { ok: false, error: res.error || 'Gagal membuat akun admin SQLite.' };
     },
     [reloadFromCloud]
   );
 
+  const loginWithCredentials = useCallback(
+    async (username: string, password: string) => {
+      const uname = username.trim();
+      const pwd = password.trim();
+      if (!uname) return { ok: false, error: 'Username wajib diisi.' };
+      if (!pwd) return { ok: false, error: 'Password wajib diisi.' };
+
+      if (!sqliteAvailable) {
+        return {
+          ok: false,
+          connError: true,
+          error:
+            'Server SQLite lokal tidak aktif. Jalankan server aplikasi atau gunakan Mode Cache Browser.',
+        };
+      }
+
+      const res = await apiService.login(uname, pwd);
+      if (res.success && res.token) {
+        try {
+          localStorage.setItem('dg_last_user', uname);
+        } catch {
+          // ignore
+        }
+        setStoredToken(res.token);
+        setHasCloudToken(true);
+        setSqliteNeedsSetup(false);
+        const prof: UserProfile = res.user || { username: uname, nama: uname, role: 'admin' };
+        setStoredUser(prof);
+        setUser(prof);
+        setIsLocked(false);
+        setShowLoginModal(false);
+
+        await reloadFromCloud();
+        return { ok: true };
+      }
+
+      if (res.code === 'NEEDS_SETUP') {
+        setSqliteNeedsSetup(true);
+        return {
+          ok: false,
+          needsSetup: true,
+          error: res.error || 'Akun admin belum dibuat. Silakan buat akun admin pertama kali.',
+        };
+      }
+
+      return {
+        ok: false,
+        error: res.error || 'Username atau password salah.',
+        connError: res.conn,
+      };
+    },
+    [sqliteAvailable, reloadFromCloud]
+  );
+
   const enterLocalMode = useCallback(() => {
-    const prof: UserProfile = { username: 'lokal', nama: 'Mode Lokal', role: 'admin' };
+    const prof: UserProfile = { username: 'lokal', nama: 'Mode Cache Browser', role: 'admin' };
     setUser(prof);
     setIsLocked(false);
     setShowLoginModal(false);
     setState(normalizeAppData(readLocalCache()));
     setSync({
-      text: apiUrl ? 'Cache Lokal (Belum Login Cloud)' : 'Tersimpan Lokal',
+      text: sqliteAvailable ? 'Cache Browser (Belum Login SQLite)' : 'Tersimpan di Cache Browser',
       isError: false,
       isSyncing: false,
       lastSyncAt: null,
     });
-  }, [apiUrl]);
+  }, [sqliteAvailable]);
 
   const logout = useCallback(() => {
+    void apiService.logout();
     clearSessionStorage();
     setHasCloudToken(false);
+    setSqliteInfo(null);
     setIsLocked(true);
     setShowLoginModal(true);
-  }, []);
+    setSync({
+      text: sqliteAvailable ? 'SQLite Siap (Belum Login)' : 'Mode Cache Browser',
+      isError: false,
+      isSyncing: false,
+      lastSyncAt: null,
+    });
+  }, [sqliteAvailable]);
 
   const changePassword = useCallback(async (curr: string, nextPwd: string) => {
-    if (!nextPwd || nextPwd.length < 3) {
-      return { ok: false, message: 'Password baru terlalu pendek (minimal 3 karakter).' };
+    if (!nextPwd || nextPwd.length < 6) {
+      return { ok: false, message: 'Password baru terlalu pendek (minimal 6 karakter).' };
     }
-    if (!isApiConfigured() || !getStoredToken()) {
-      if (curr !== getStoredLocalPwd()) {
-        return { ok: false, message: 'Password saat ini tidak sesuai.' };
-      }
-      setStoredLocalPwd(nextPwd);
-      return { ok: true, message: 'Password berhasil diperbarui (mode lokal).' };
+    if (!getStoredToken()) {
+      return {
+        ok: false,
+        message: 'Silakan login ke akun SQLite terlebih dahulu untuk mengganti password.',
+      };
     }
     const res = await apiService.changePwd(curr, nextPwd);
     if (res.success) {
-      if (res.token) setStoredToken(res.token, Boolean(localStorage.getItem('dg_auth')));
+      if (res.token) setStoredToken(res.token);
       return {
         ok: true,
-        message: 'Password berhasil diperbarui di Google Sheets. Perangkat lain harus masuk ulang.',
+        message: 'Password berhasil diperbarui di SQLite. Sesi lain otomatis dicabut.',
       };
     }
     return { ok: false, message: res.error || 'Gagal mengganti password.' };
   }, []);
 
-  const updateApiUrl = useCallback(async (url: string) => {
-    const cleaned = url.trim();
-    const formatCheck = validateApiUrlFormat(cleaned);
-    if (!formatCheck.valid) {
-      return {
-        ok: false,
-        message: formatCheck.error || 'Format URL Web App tidak valid.',
-      };
+  const vacuumSqliteDb = useCallback(async (): Promise<{ ok: boolean; message: string }> => {
+    const res = await apiService.vacuumSqlite();
+    if (res.authExpired) {
+      handleAuthExpired();
+      return { ok: false, message: 'Sesi login berakhir.' };
     }
-
-    const oldUrl = getApiUrl();
-    persistApiUrl(cleaned);
-    setApiUrlState(cleaned);
-    setSyncConflict(null);
-
-    if (oldUrl !== cleaned) {
-      clearSessionStorage();
-      setHasCloudToken(false);
-    }
-
-    if (!cleaned) {
-      setUser({ username: 'lokal', nama: 'Mode Lokal', role: 'admin' });
-      setSync({ text: 'Tersimpan Lokal', isError: false, isSyncing: false, lastSyncAt: null });
+    if (res.ok && res.info) {
+      setSqliteInfo(res.info);
       return {
         ok: true,
-        message: 'Aplikasi beralih ke Mode Lokal (localStorage). Data tetap aman di browser.',
+        message: 'Optimasi SQLite (VACUUM & WAL Checkpoint) berhasil dijalankan.',
       };
     }
+    return { ok: false, message: res.error || 'Gagal menjalankan optimasi SQLite.' };
+  }, [handleAuthExpired]);
 
-    return {
-      ok: true,
-      message: 'URL Web App disimpan. Silakan login akun Google Sheets untuk menyinkronkan data.',
-    };
-  }, []);
+  const downloadSqliteBackup = useCallback(async (): Promise<{ ok: boolean; message: string }> => {
+    const res = await apiService.downloadSqliteBackup();
+    if (res.authExpired) {
+      handleAuthExpired();
+      return { ok: false, message: 'Sesi login berakhir.' };
+    }
+    if (res.ok) {
+      return {
+        ok: true,
+        message: `File backup ${res.fileName || 'SQLite'} berhasil diunduh.`,
+      };
+    }
+    return { ok: false, message: res.error || 'Gagal mengunduh backup SQLite.' };
+  }, [handleAuthExpired]);
 
-  const resetConnectionUrl = useCallback(() => {
-    resetApiUrl();
-    const defUrl = getApiUrl();
-    setApiUrlState(defUrl);
-    setHasCloudToken(false);
-    setSync({
-      text: defUrl ? 'Cache Lokal (Belum Login Cloud)' : 'Tersimpan Lokal',
-      isError: false,
-      isSyncing: false,
-      lastSyncAt: null,
-    });
-  }, []);
+  const restoreSqliteFile = useCallback(
+    async (
+      file: File
+    ): Promise<{
+      ok: boolean;
+      error?: string;
+      preBackupJson?: string;
+      preBackupFilename?: string;
+      summary?: BackupDataSummary;
+    }> => {
+      if (isViewer) {
+        return { ok: false, error: 'Mode Viewer tidak diizinkan melakukan restore database.' };
+      }
 
-  const pingConnection = useCallback((url?: string) => apiService.ping(url), []);
+      const currentSnapshot = stateRef.current;
+      const preBackupJson = JSON.stringify(currentSnapshot, null, 2);
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const preBackupFilename = `cadangan-sebelum-restore-doona-${stamp}.json`;
+
+      const res = await apiService.importSqliteBackup(file);
+      if (res.authExpired) {
+        handleAuthExpired();
+        return { ok: false, error: 'Sesi login berakhir. Silakan masuk ulang.' };
+      }
+      if (!res.ok || !res.data) {
+        return { ok: false, error: res.error || 'Gagal memulihkan file SQLite.' };
+      }
+
+      const savedSnap = writePreRestoreBackup(
+        currentSnapshot,
+        `Cadangan otomatis sebelum restore file SQLite (${file.name})`
+      );
+      if (savedSnap) setPreRestoreBackup(savedSnap);
+
+      const nextData = normalizeAppData(res.data);
+      const fp = computeDataFingerprint(nextData);
+      stateRef.current = nextData;
+      setState(nextData);
+      writeLocalCache(nextData);
+      setHasUnsavedIn(false);
+      setHasUnsavedAwal(false);
+      setHasUnsavedOmset(false);
+      setAbsDraft({});
+      setAbsUnsent(false);
+      setAbsSaveError(null);
+      setSyncConflict(null);
+
+      if (res.info) {
+        setSqliteInfo(res.info);
+      } else {
+        void refreshSqliteInfo();
+      }
+
+      const nowIso = res.savedAt || new Date().toISOString();
+      updateSyncMeta({
+        lastLocalWriteAt: nowIso,
+        lastCloudSyncAt: nowIso,
+        lastCloudFingerprint: fp,
+        pendingLocalChanges: false,
+        lastError: null,
+      });
+
+      setSync({
+        text: 'Tersimpan di SQLite',
+        isError: false,
+        isSyncing: false,
+        lastSyncAt: new Date().toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      });
+
+      return {
+        ok: true,
+        preBackupJson,
+        preBackupFilename,
+        summary: summarizeAppData(nextData),
+      };
+    },
+    [isViewer, handleAuthExpired, refreshSqliteInfo, updateSyncMeta]
+  );
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -2605,7 +2736,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isViewer,
       isLocked,
       dbMode,
-      apiUrl,
+      sqliteAvailable,
+      sqliteChecking,
+      sqliteNeedsSetup,
+      sqliteEnvManaged,
+      sqliteInfo,
       sync,
       syncMeta,
       syncConflict,
@@ -2658,15 +2793,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       restoreFromPreRestoreBackup,
       saveNow,
       reloadFromCloud,
+      refreshSqliteInfo,
       checkAndSyncCloud,
       resolveSyncConflict,
+      setupInitialAdmin,
       loginWithCredentials,
       enterLocalMode,
       logout,
       changePassword,
-      updateApiUrl,
-      resetConnectionUrl,
-      pingConnection,
+      vacuumSqliteDb,
+      downloadSqliteBackup,
+      restoreSqliteFile,
     }),
     [
       state,
@@ -2694,7 +2831,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isViewer,
       isLocked,
       dbMode,
-      apiUrl,
+      sqliteAvailable,
+      sqliteChecking,
+      sqliteNeedsSetup,
+      sqliteEnvManaged,
+      sqliteInfo,
       sync,
       syncMeta,
       syncConflict,
@@ -2745,15 +2886,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       restoreFromPreRestoreBackup,
       saveNow,
       reloadFromCloud,
+      refreshSqliteInfo,
       checkAndSyncCloud,
       resolveSyncConflict,
+      setupInitialAdmin,
       loginWithCredentials,
       enterLocalMode,
       logout,
       changePassword,
-      updateApiUrl,
-      resetConnectionUrl,
-      pingConnection,
+      vacuumSqliteDb,
+      downloadSqliteBackup,
+      restoreSqliteFile,
     ]
   );
 

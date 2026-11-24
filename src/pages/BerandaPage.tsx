@@ -486,14 +486,14 @@ export const BerandaPage: React.FC = () => {
 
             {/* Right Utility Controls (Sample Icons + Notification Bell) */}
             <div ref={headerActionsRef} className="flex items-center gap-1.5">
-              {dbMode === 'cloud_unauth' && (
+              {(dbMode === 'sqlite_unauth' || dbMode === 'cloud_unauth') && (
                 <button
                   type="button"
                   onClick={() => setShowLoginModal(true)}
                   className="mr-1 inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-[#b45309] px-3 text-xs font-semibold text-white transition hover:bg-[#92400e] whitespace-nowrap cursor-pointer"
                 >
                   <CloudOff className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Login Cloud</span>
+                  <span className="hidden sm:inline">Login SQLite</span>
                 </button>
               )}
 

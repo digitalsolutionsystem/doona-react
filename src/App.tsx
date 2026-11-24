@@ -18,7 +18,7 @@ import { TabelBulananPage } from './pages/TabelBulananPage';
 import type { MenuId } from './types/app';
 
 const AppShell: React.FC = () => {
-  const { activeMenu, isViewer } = useApp();
+  const { activeMenu, isViewer, isLocked, showLoginModal } = useApp();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [headerSlotEl, setHeaderSlotEl] = useState<HTMLElement | null>(null);
@@ -46,6 +46,10 @@ const AppShell: React.FC = () => {
   const navDirection = navTrackRef.current.dir;
 
   const contentClass = sidebarCollapsed ? 'dg-content sidebar-collapsed' : 'dg-content';
+
+  if (isLocked && showLoginModal) {
+    return <LoginModal />;
+  }
 
   const renderActivePage = () => {
     if (normalizedMenu === 'home') return <BerandaPage />;

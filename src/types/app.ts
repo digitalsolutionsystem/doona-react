@@ -14,7 +14,7 @@ export type MenuId =
 export type InputHarianTab = 'closing' | 'datang' | 'pemakaian' | 'awal';
 export type OmsetSubTab = 'harian' | 'pengeluaran' | 'kalender' | 'grafik' | 'rekap';
 export type AbsensiSubTab = 'harian' | 'kalender' | 'karyawan' | 'rekap' | 'detail';
-export type PengaturanSubTab = 'uiux' | 'db';
+export type PengaturanSubTab = 'uiux' | 'db' | 'backup';
 export type PayrollCycle = 'p1' | 'p2' | 'full';
 export type AttendanceStatus = 'Hadir' | 'Izin' | 'Sakit' | 'Alfa' | 'Libur';
 export type AttendanceShift = 'Pagi' | 'Siang' | 'Full' | 'Fleksibel';
@@ -149,10 +149,41 @@ export interface UserProfile {
 }
 
 export type DbConnectionMode =
+  | 'sqlite_connected'
+  | 'sqlite_unauth'
   | 'gas'
   | 'cloud_connected'
   | 'cloud_unauth'
   | 'local';
+
+export interface SqliteDatabaseInfo {
+  engine: string;
+  dbPath: string;
+  fileName: string;
+  fileSizeBytes: number;
+  journalMode: string;
+  schemaVersion: number;
+  lastSavedAt: string | null;
+  counts: {
+    items: number;
+    stockAwal: number;
+    stockDaily: number;
+    employees: number;
+    employeesArchived: number;
+    attendance: number;
+    omsetDays: number;
+    omsetClosing: number;
+    users: number;
+  };
+}
+
+export interface SqliteHealthResponse {
+  ok: boolean;
+  engine: 'sqlite';
+  needsSetup: boolean;
+  envPasswordManaged: boolean;
+  dbFileName: string;
+}
 
 export interface NavigationOptions {
   day?: number;

@@ -1,102 +1,52 @@
-import { DEFAULT_API_URL } from '../constants/defaults';
-import type { AppData, UserProfile } from '../types/app';
+import type {
+  AppData,
+  SqliteDatabaseInfo,
+  SqliteHealthResponse,
+  UserProfile,
+} from '../types/app';
 
-interface GasRunner {
-  withSuccessHandler: (cb: (res: unknown) => void) => GasRunner;
-  withFailureHandler: (cb: (err: unknown) => void) => GasRunner;
-  getData: (token: string) => void;
-  saveData: (json: string, token: string) => void;
-  sendTelegram: (text: string, token: string) => void;
-  getProfile: (token: string) => void;
-  login: (user: string, pwd: string) => void;
-  changePwd: (curr: string, nw: string, token: string) => void;
-}
+/**
+ * In-memory Bearer token store (never persisted to localStorage or sessionStorage).
+ */
+let memoryToken = '';
+let memoryUser: UserProfile | null = null;
 
-declare global {
-  interface Window {
-    google?: {
-      script?: {
-        run?: GasRunner;
-      };
-    };
+function purgeLegacyBrowserAuthKeys(): void {
+  try {
+    sessionStorage.removeItem('dg_token');
+    localStorage.removeItem('dg_token');
+    sessionStorage.removeItem('dg_auth');
+    localStorage.removeItem('dg_auth');
+    sessionStorage.removeItem('dg_user');
+    localStorage.removeItem('dg_user');
+    localStorage.removeItem('dg_pwd');
+  } catch {
+    // Abaikan jika browser membatasi akses storage
   }
 }
 
-export const API_URL_RE =
-  /^https:\/\/script\.google\.com\/(?:a\/(?:macros\/)?[^/]+\/)?macros\/s\/[\w-]+\/exec$/;
-
-export function hasGoogleAppsScriptHost(): boolean {
-  return Boolean(window.google?.script?.run);
-}
-
-export function getApiUrl(): string {
-  const stored = localStorage.getItem('dg_api_url');
-  if (stored === '__LOCAL_ONLY__') return '';
-  return (stored ?? DEFAULT_API_URL ?? '').trim();
-}
-
-export function setApiUrl(url: string): void {
-  const cleaned = (url || '').trim();
-  if (!cleaned) {
-    localStorage.setItem('dg_api_url', '__LOCAL_ONLY__');
-  } else {
-    localStorage.setItem('dg_api_url', cleaned);
-  }
-}
-
-export function resetApiUrl(): void {
-  localStorage.removeItem('dg_api_url');
-  clearSessionStorage();
-}
-
-export function isApiConfigured(): boolean {
-  return Boolean(hasGoogleAppsScriptHost() || getApiUrl());
-}
+purgeLegacyBrowserAuthKeys();
 
 export function getStoredToken(): string {
-  return sessionStorage.getItem('dg_token') || localStorage.getItem('dg_token') || '';
+  return memoryToken;
 }
 
-export function setStoredToken(token: string, remember: boolean): void {
-  if (!token) return;
-  sessionStorage.setItem('dg_token', token);
-  if (remember) localStorage.setItem('dg_token', token);
-  else localStorage.removeItem('dg_token');
+export function setStoredToken(token: string): void {
+  memoryToken = (token || '').trim();
 }
 
 export function getStoredUser(): UserProfile | null {
-  try {
-    return JSON.parse(
-      sessionStorage.getItem('dg_user') || localStorage.getItem('dg_user') || 'null'
-    );
-  } catch {
-    return null;
-  }
+  return memoryUser;
 }
 
-export function setStoredUser(user: UserProfile, remember?: boolean): void {
-  const raw = JSON.stringify(user);
-  sessionStorage.setItem('dg_user', raw);
-  const keep = remember ?? Boolean(localStorage.getItem('dg_auth'));
-  if (keep) localStorage.setItem('dg_user', raw);
-  else localStorage.removeItem('dg_user');
+export function setStoredUser(user: UserProfile | null): void {
+  memoryUser = user ? { ...user } : null;
 }
 
 export function clearSessionStorage(): void {
-  sessionStorage.removeItem('dg_token');
-  localStorage.removeItem('dg_token');
-  sessionStorage.removeItem('dg_user');
-  localStorage.removeItem('dg_user');
-  sessionStorage.removeItem('dg_auth');
-  localStorage.removeItem('dg_auth');
-}
-
-export function getStoredLocalPwd(): string {
-  return localStorage.getItem('dg_pwd') || 'admin';
-}
-
-export function setStoredLocalPwd(pwd: string): void {
-  localStorage.setItem('dg_pwd', pwd);
+  memoryToken = '';
+  memoryUser = null;
+  purgeLegacyBrowserAuthKeys();
 }
 
 export function readLocalCache(): Partial<AppData> | null {
@@ -118,60 +68,28 @@ export function writeLocalCache(data: AppData): void {
 export function photoUrl(u?: string): string {
   const clean = String(u || '').trim();
   if (!clean) return '';
+  if (/^(javascript|data:text\/html)/i.test(clean)) return '';
   const match =
     clean.match(/drive\.google\.com\/file\/d\/([\w-]+)/) ||
     clean.match(/drive\.google\.com\/(?:open|uc)\?[^#]*\bid=([\w-]+)/);
   return match ? `https://lh3.googleusercontent.com/d/${match[1]}` : clean;
 }
 
-export function getApiErrorMessage(err: unknown): string {
-  const url = getApiUrl();
-  if (url && !API_URL_RE.test(url)) {
-    return 'Format Web App URL tidak valid. URL harus berbentuk https://script.google.com/macros/s/…/exec.';
-  }
-  const msg = err instanceof Error ? err.message : String(err || '');
-  if ((err instanceof Error && err.name === 'SyntaxError') || /JSON/i.test(msg)) {
-    return 'Server tidak membalas data yang benar. Pastikan deployment diset "Who has access: Anyone" dan sudah di-deploy ulang.';
-  }
-  return 'Tidak dapat terhubung ke server. Periksa koneksi internet, Web App URL, dan pastikan akses deployment diset "Anyone".';
-}
-
-async function postApi<T>(payload: Record<string, unknown>, customUrl?: string): Promise<T> {
-  const target = (customUrl ?? getApiUrl()).trim();
-  const res = await fetch(target, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-  });
-  return (await res.json()) as T;
-}
-
-export interface ApiLoadResult {
-  data: Partial<AppData> | null;
-  source: 'cloud' | 'local';
-  authExpired?: boolean;
-  error?: string;
-}
-
 export interface ApiSaveResult {
   ok: boolean;
-  mode: 'cloud' | 'local' | 'offline' | 'readonly' | 'error';
+  mode: 'sqlite' | 'local' | 'offline' | 'readonly' | 'error';
   authExpired?: boolean;
+  savedAt?: string;
+  error?: string;
 }
 
 export interface ApiLoginResult {
   success: boolean;
   token?: string;
   user?: UserProfile;
+  code?: string;
   error?: string;
   conn?: boolean;
-}
-
-export interface ApiPingResult {
-  success: boolean;
-  spreadsheetName?: string;
-  sheets?: string[];
-  error?: string;
 }
 
 export interface PreRestoreBackupSnapshot {
@@ -275,10 +193,6 @@ function stableStringify(val: unknown): string {
   return '{' + keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(',') + '}';
 }
 
-/**
- * Menghasilkan fingerprint deterministik dari seluruh AppData
- * untuk mendeteksi konflik & mencegah penimpaan data secara tidak sengaja.
- */
 export function computeDataFingerprint(data: Partial<AppData> | null | undefined): string {
   if (!data) return 'empty';
   const canonical = stableStringify({
@@ -289,6 +203,7 @@ export function computeDataFingerprint(data: Partial<AppData> | null | undefined
     karyawan: data.karyawan || [],
     karyawanArsip: data.karyawanArsip || [],
     absensi: data.absensi || {},
+    shiftConfig: data.shiftConfig || {},
     omset: data.omset || { days: {}, closing: {} },
   });
   let hash = 2166136261;
@@ -313,19 +228,6 @@ export function getLocalCacheStats(): { hasCache: boolean; sizeKb: number } {
   }
 }
 
-export function validateApiUrlFormat(url: string): { valid: boolean; error?: string } {
-  const cleaned = (url || '').trim();
-  if (!cleaned) return { valid: true };
-  if (!API_URL_RE.test(cleaned)) {
-    return {
-      valid: false,
-      error:
-        'Format Web App URL tidak valid. URL harus berbentuk https://script.google.com/macros/s/…/exec.',
-    };
-  }
-  return { valid: true };
-}
-
 export interface ApiCloudFetchResult {
   ok: boolean;
   data: Partial<AppData> | null;
@@ -341,214 +243,112 @@ export interface ApiTelegramResult {
   authExpired?: boolean;
 }
 
+function buildAuthHeaders(includeJson = true): HeadersInit {
+  const headers: Record<string, string> = {};
+  if (includeJson) headers['Content-Type'] = 'application/json';
+  if (memoryToken) headers.Authorization = `Bearer ${memoryToken}`;
+  return headers;
+}
+
+async function parseJsonSafe<T>(res: Response): Promise<T | null> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export const apiService = {
-  /**
-   * Membaca data mentah dari Cloud (Google Apps Script) TANPA langsung menimpa localStorage.
-   * Digunakan untuk deteksi konflik dan sinkronisasi aman.
-   */
-  async fetchCloudRaw(): Promise<ApiCloudFetchResult> {
-    const gs = window.google?.script?.run;
-    const token = getStoredToken();
-
-    if (gs) {
-      return new Promise((resolve) => {
-        gs.withSuccessHandler((raw) => {
-          try {
-            const parsed = raw ? (JSON.parse(String(raw)) as Partial<AppData>) : null;
-            const hasItems = Boolean(parsed && Array.isArray(parsed.items) && parsed.items.length > 0);
-            resolve({ ok: true, data: parsed, isEmptyCloud: !hasItems });
-          } catch (err) {
-            resolve({ ok: false, data: null, error: getApiErrorMessage(err) });
-          }
-        })
-          .withFailureHandler((err) => {
-            const msg = String(err || '');
-            if (msg.includes('AUTH')) {
-              resolve({ ok: false, data: null, authExpired: true, error: 'Sesi login berakhir.' });
-            } else {
-              resolve({ ok: false, data: null, error: msg || 'Gagal membaca data dari Google Apps Script.' });
-            }
-          })
-          .getData(token);
-      });
-    }
-
-    const url = getApiUrl();
-    if (!url || !token) {
-      return { ok: false, data: null, unconfigured: true };
-    }
-
+  async checkSqliteHealth(): Promise<SqliteHealthResponse | null> {
     try {
-      const res = await postApi<{
-        success?: boolean;
-        code?: string;
-        error?: string;
-        data?: Partial<AppData> | null;
-      }>({ action: 'getData', token });
-
-      if (res?.code === 'AUTH') {
-        return { ok: false, data: null, authExpired: true, error: 'Sesi login berakhir.' };
-      }
-      if (res?.success) {
-        const parsed = res.data || null;
-        const hasItems = Boolean(parsed && Array.isArray(parsed.items) && parsed.items.length > 0);
-        return { ok: true, data: parsed, isEmptyCloud: !hasItems };
-      }
-      return {
-        ok: false,
-        data: null,
-        error: res?.error || 'Server gagal mengembalikan data cloud.',
-      };
-    } catch (err) {
-      return { ok: false, data: null, error: getApiErrorMessage(err) };
-    }
-  },
-
-  async load(): Promise<ApiLoadResult> {
-    const cloudRes = await this.fetchCloudRaw();
-    if (cloudRes.authExpired) {
-      return { data: readLocalCache(), source: 'local', authExpired: true };
-    }
-    if (cloudRes.ok && cloudRes.data) {
-      try {
-        localStorage.setItem('dg', JSON.stringify(cloudRes.data));
-      } catch {
-        // ignore
-      }
-      return { data: cloudRes.data, source: 'cloud' };
-    }
-    if (cloudRes.error) {
-      return { data: readLocalCache(), source: 'local', error: cloudRes.error };
-    }
-    return { data: readLocalCache(), source: 'local' };
-  },
-
-  async save(data: AppData, isViewer: boolean): Promise<ApiSaveResult> {
-    if (isViewer) {
-      return { ok: false, mode: 'readonly' };
-    }
-    writeLocalCache(data);
-    const gs = window.google?.script?.run;
-    const token = getStoredToken();
-
-    if (gs) {
-      return new Promise((resolve) => {
-        gs.withSuccessHandler(() => resolve({ ok: true, mode: 'cloud' }))
-          .withFailureHandler((err) => {
-            const msg = String(err);
-            if (msg.includes('AUTH')) resolve({ ok: false, mode: 'error', authExpired: true });
-            else if (/FORBIDDEN/.test(msg)) resolve({ ok: false, mode: 'readonly' });
-            else resolve({ ok: false, mode: 'error' });
-          })
-          .saveData(JSON.stringify(data), token);
+      const res = await fetch('/api/health', {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
       });
-    }
-
-    const url = getApiUrl();
-    if (url && token) {
-      try {
-        const res = await postApi<{ success?: boolean; code?: string }>({
-          action: 'saveData',
-          token,
-          data,
-        });
-        if (res?.code === 'AUTH') return { ok: false, mode: 'error', authExpired: true };
-        if (res?.code === 'FORBIDDEN') return { ok: false, mode: 'readonly' };
-        if (res?.success) return { ok: true, mode: 'cloud' };
-        return { ok: false, mode: 'error' };
-      } catch {
-        return { ok: false, mode: 'offline' };
+      if (!res.ok) return null;
+      const body = await parseJsonSafe<SqliteHealthResponse>(res);
+      if (body && body.ok && body.engine === 'sqlite') {
+        return body;
       }
+      return null;
+    } catch {
+      return null;
     }
-
-    return { ok: true, mode: 'local' };
   },
 
-  async sendTelegram(text: string): Promise<ApiTelegramResult> {
-    const gs = window.google?.script?.run;
-    const token = getStoredToken();
-
-    if (gs) {
-      return new Promise((resolve) => {
-        gs.withSuccessHandler((res) => {
-          const r = res as { success?: boolean; error?: string } | null;
-          resolve({ success: Boolean(r?.success), error: r?.error });
-        })
-          .withFailureHandler((err) => {
-            const msg = String(err || '');
-            if (msg.includes('AUTH')) {
-              resolve({ success: false, authExpired: true, error: 'Sesi login telah berakhir.' });
-            } else {
-              resolve({ success: false, error: msg || 'Gagal mengirim ke Telegram.' });
-            }
-          })
-          .sendTelegram(text, token);
+  async setupSqliteAdmin(
+    username: string,
+    nama: string,
+    password: string
+  ): Promise<ApiLoginResult> {
+    try {
+      const res = await fetch('/api/auth/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, nama, password }),
       });
-    }
-
-    const url = getApiUrl();
-    if (!url) {
+      const body = await parseJsonSafe<ApiLoginResult>(res);
+      if (res.ok && body?.success) {
+        return body;
+      }
       return {
         success: false,
-        error:
-          'Kirim Telegram membutuhkan koneksi ke Google Sheets / Apps Script (token bot disimpan aman di Code.gs). Hubungkan database terlebih dahulu.',
+        error: body?.error || 'Gagal membuat akun admin SQLite.',
       };
-    }
-
-    try {
-      const res = await postApi<{ success?: boolean; error?: string; code?: string }>({
-        action: 'sendTelegram',
-        token,
-        text,
-      });
-      if (res?.code === 'AUTH') {
-        return {
-          success: false,
-          authExpired: true,
-          error: 'Sesi login berakhir. Silakan masuk ulang ke database.',
-        };
-      }
+    } catch {
       return {
-        success: Boolean(res?.success),
-        error: res?.error,
+        success: false,
+        conn: true,
+        error: 'Tidak dapat terhubung ke server SQLite lokal.',
       };
-    } catch (err) {
-      return { success: false, error: getApiErrorMessage(err) };
     }
   },
 
   async login(username: string, password: string): Promise<ApiLoginResult> {
-    const gs = window.google?.script?.run;
-    if (gs) {
-      return new Promise((resolve) => {
-        gs.withSuccessHandler((res) => resolve(res as ApiLoginResult))
-          .withFailureHandler((err) => resolve({ success: false, error: String(err) }))
-          .login(username, password);
-      });
-    }
     try {
-      return await postApi<ApiLoginResult>({ action: 'login', username, password });
-    } catch (err) {
-      return { success: false, conn: true, error: getApiErrorMessage(err) };
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const body = await parseJsonSafe<ApiLoginResult>(res);
+      if (res.ok && body?.success) {
+        return body;
+      }
+      return {
+        success: false,
+        code: body?.code,
+        error: body?.error || 'Username atau password salah.',
+      };
+    } catch {
+      return {
+        success: false,
+        conn: true,
+        error: 'Tidak dapat terhubung ke server SQLite lokal.',
+      };
+    }
+  },
+
+  async logout(): Promise<void> {
+    if (!memoryToken) return;
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: buildAuthHeaders(false),
+      });
+    } catch {
+      // Abaikan error jaringan saat logout
     }
   },
 
   async me(): Promise<{ success?: boolean; user?: UserProfile; code?: string } | null> {
-    const gs = window.google?.script?.run;
-    const token = getStoredToken();
-    if (!token && !gs) return null;
-    if (gs) {
-      return new Promise((resolve) => {
-        gs.withSuccessHandler((u) => resolve({ success: true, user: u as UserProfile }))
-          .withFailureHandler(() => resolve(null))
-          .getProfile(token);
-      });
-    }
+    if (!memoryToken) return null;
     try {
-      return await postApi<{ success?: boolean; user?: UserProfile; code?: string }>({
-        action: 'me',
-        token,
+      const res = await fetch('/api/auth/me', {
+        method: 'GET',
+        headers: buildAuthHeaders(false),
       });
+      return await parseJsonSafe<{ success?: boolean; user?: UserProfile; code?: string }>(res);
     } catch {
       return null;
     }
@@ -558,39 +358,278 @@ export const apiService = {
     current: string,
     password: string
   ): Promise<{ success: boolean; token?: string; error?: string; code?: string }> {
-    const gs = window.google?.script?.run;
-    const token = getStoredToken();
-    if (gs) {
-      return new Promise((resolve) => {
-        gs.withSuccessHandler((r) =>
-          resolve(r as { success: boolean; token?: string; error?: string })
-        )
-          .withFailureHandler((e) => resolve({ success: false, error: String(e) }))
-          .changePwd(current, password, token);
-      });
+    if (!memoryToken) {
+      return { success: false, code: 'AUTH', error: 'Silakan masuk ke akun SQLite terlebih dahulu.' };
     }
     try {
-      return await postApi<{ success: boolean; token?: string; error?: string; code?: string }>({
-        action: 'changePwd',
-        token,
-        current,
-        password,
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: buildAuthHeaders(true),
+        body: JSON.stringify({ current, password }),
       });
+      const body = await parseJsonSafe<{
+        success?: boolean;
+        token?: string;
+        error?: string;
+        code?: string;
+      }>(res);
+      if (res.ok && body?.success) {
+        return { success: true, token: body.token };
+      }
+      return {
+        success: false,
+        code: body?.code,
+        error: body?.error || 'Gagal mengganti password.',
+      };
     } catch {
-      return { success: false, error: 'Tidak dapat terhubung ke server.' };
+      return { success: false, error: 'Tidak dapat terhubung ke server SQLite lokal.' };
     }
   },
 
-  async ping(customUrl?: string): Promise<ApiPingResult> {
-    const target = (customUrl ?? getApiUrl()).trim();
-    if (!target) return { success: false, error: 'URL belum diisi.' };
-    try {
-      return await postApi<ApiPingResult>(
-        { action: 'ping', token: getStoredToken() },
-        target
-      );
-    } catch (err) {
-      return { success: false, error: getApiErrorMessage(err) };
+  async fetchCloudRaw(): Promise<ApiCloudFetchResult> {
+    if (!memoryToken) {
+      return { ok: false, data: null, unconfigured: true };
     }
+    try {
+      const res = await fetch('/api/data', {
+        method: 'GET',
+        headers: buildAuthHeaders(false),
+      });
+      const body = await parseJsonSafe<{
+        success?: boolean;
+        code?: string;
+        error?: string;
+        isEmpty?: boolean;
+        data?: Partial<AppData> | null;
+      }>(res);
+
+      if (res.status === 401 || body?.code === 'AUTH') {
+        return { ok: false, data: null, authExpired: true, error: 'Sesi login berakhir.' };
+      }
+      if (res.ok && body?.success) {
+        const parsed = body.data || null;
+        const isEmpty = Boolean(body.isEmpty) || !parsed || !Array.isArray(parsed.items) || parsed.items.length === 0;
+        return { ok: true, data: parsed, isEmptyCloud: isEmpty };
+      }
+      return {
+        ok: false,
+        data: null,
+        error: body?.error || 'Gagal membaca data dari database SQLite.',
+      };
+    } catch {
+      return {
+        ok: false,
+        data: null,
+        error: 'Tidak dapat terhubung ke server SQLite lokal.',
+      };
+    }
+  },
+
+  async save(data: AppData, isViewer: boolean): Promise<ApiSaveResult> {
+    if (isViewer) {
+      return { ok: false, mode: 'readonly' };
+    }
+    writeLocalCache(data);
+
+    if (!memoryToken) {
+      return { ok: true, mode: 'local' };
+    }
+
+    try {
+      const res = await fetch('/api/data', {
+        method: 'PUT',
+        headers: buildAuthHeaders(true),
+        body: JSON.stringify({ data }),
+      });
+      const body = await parseJsonSafe<{
+        success?: boolean;
+        code?: string;
+        savedAt?: string;
+        error?: string;
+      }>(res);
+
+      if (res.status === 401 || body?.code === 'AUTH') {
+        return { ok: false, mode: 'error', authExpired: true };
+      }
+      if (res.status === 403 || body?.code === 'FORBIDDEN') {
+        return { ok: false, mode: 'readonly' };
+      }
+      if (res.ok && body?.success) {
+        return { ok: true, mode: 'sqlite', savedAt: body.savedAt };
+      }
+      return { ok: false, mode: 'error', error: body?.error };
+    } catch {
+      return { ok: false, mode: 'offline' };
+    }
+  },
+
+  async getSqliteInfo(): Promise<{
+    ok: boolean;
+    info?: SqliteDatabaseInfo;
+    authExpired?: boolean;
+    error?: string;
+  }> {
+    if (!memoryToken) {
+      return { ok: false, error: 'Belum login ke SQLite.' };
+    }
+    try {
+      const res = await fetch('/api/db/info', {
+        method: 'GET',
+        headers: buildAuthHeaders(false),
+      });
+      const body = await parseJsonSafe<{
+        success?: boolean;
+        code?: string;
+        info?: SqliteDatabaseInfo;
+        error?: string;
+      }>(res);
+      if (res.status === 401 || body?.code === 'AUTH') {
+        return { ok: false, authExpired: true, error: 'Sesi login berakhir.' };
+      }
+      if (res.ok && body?.success && body.info) {
+        return { ok: true, info: body.info };
+      }
+      return { ok: false, error: body?.error || 'Gagal membaca informasi SQLite.' };
+    } catch {
+      return { ok: false, error: 'Server SQLite tidak merespons.' };
+    }
+  },
+
+  async vacuumSqlite(): Promise<{
+    ok: boolean;
+    info?: SqliteDatabaseInfo;
+    authExpired?: boolean;
+    error?: string;
+  }> {
+    if (!memoryToken) {
+      return { ok: false, error: 'Silakan masuk sebagai Admin terlebih dahulu.' };
+    }
+    try {
+      const res = await fetch('/api/db/vacuum', {
+        method: 'POST',
+        headers: buildAuthHeaders(false),
+      });
+      const body = await parseJsonSafe<{
+        success?: boolean;
+        code?: string;
+        info?: SqliteDatabaseInfo;
+        error?: string;
+      }>(res);
+      if (res.status === 401 || body?.code === 'AUTH') {
+        return { ok: false, authExpired: true, error: 'Sesi login berakhir.' };
+      }
+      if (res.ok && body?.success && body.info) {
+        return { ok: true, info: body.info };
+      }
+      return { ok: false, error: body?.error || 'Gagal mengoptimasi database SQLite.' };
+    } catch {
+      return { ok: false, error: 'Server SQLite tidak merespons.' };
+    }
+  },
+
+  async downloadSqliteBackup(): Promise<{
+    ok: boolean;
+    fileName?: string;
+    authExpired?: boolean;
+    error?: string;
+  }> {
+    if (!memoryToken) {
+      return { ok: false, error: 'Silakan masuk sebagai Admin untuk mengunduh backup .sqlite.' };
+    }
+    try {
+      const res = await fetch('/api/db/export-sqlite', {
+        method: 'GET',
+        headers: buildAuthHeaders(false),
+      });
+      if (res.status === 401) {
+        return { ok: false, authExpired: true, error: 'Sesi login berakhir.' };
+      }
+      if (!res.ok) {
+        const body = await parseJsonSafe<{ error?: string }>(res);
+        return { ok: false, error: body?.error || 'Gagal membuat file backup SQLite.' };
+      }
+
+      const blob = await res.blob();
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const fileName = `doona-golf-backup-${dateStr}.sqlite`;
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+      return { ok: true, fileName };
+    } catch {
+      return { ok: false, error: 'Gagal mengunduh file backup SQLite.' };
+    }
+  },
+
+  async importSqliteBackup(file: File): Promise<{
+    ok: boolean;
+    data?: Partial<AppData>;
+    savedAt?: string;
+    info?: SqliteDatabaseInfo;
+    authExpired?: boolean;
+    error?: string;
+  }> {
+    if (!memoryToken) {
+      return {
+        ok: false,
+        error: 'Silakan masuk sebagai Admin untuk melakukan restore file .sqlite.',
+      };
+    }
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const res = await fetch('/api/db/import-sqlite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          Authorization: `Bearer ${memoryToken}`,
+        },
+        body: arrayBuffer,
+      });
+      const body = await parseJsonSafe<{
+        success?: boolean;
+        code?: string;
+        data?: Partial<AppData>;
+        savedAt?: string;
+        info?: SqliteDatabaseInfo;
+        error?: string;
+      }>(res);
+
+      if (res.status === 401 || body?.code === 'AUTH') {
+        return { ok: false, authExpired: true, error: 'Sesi login berakhir.' };
+      }
+      if (res.status === 403 || body?.code === 'FORBIDDEN') {
+        return { ok: false, error: 'Hanya akun Admin yang dapat merestore database SQLite.' };
+      }
+      if (res.ok && body?.success && body.data) {
+        return {
+          ok: true,
+          data: body.data,
+          savedAt: body.savedAt,
+          info: body.info,
+        };
+      }
+      return {
+        ok: false,
+        error: body?.error || 'File SQLite ditolak oleh server.',
+      };
+    } catch {
+      return {
+        ok: false,
+        error: 'Gagal mengirim file SQLite ke server lokal.',
+      };
+    }
+  },
+
+  async sendTelegram(_text: string): Promise<ApiTelegramResult> {
+    return {
+      success: false,
+      error:
+        'Mode database SQLite lokal berjalan offline tanpa jembatan Telegram. Gunakan tombol Salin untuk mengirim laporan via WhatsApp atau Telegram.',
+    };
   },
 };

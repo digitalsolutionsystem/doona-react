@@ -88,7 +88,7 @@ export const ChangePasswordModal: React.FC = () => {
                 type="password"
                 value={nextPwd}
                 onChange={(e) => setNextPwd(e.target.value)}
-                placeholder="Minimal 3 karakter"
+                placeholder="Minimal 6 karakter"
                 required
                 className="h-9.5 w-full rounded-xl border border-[#dce6e2] bg-[#f7faf9] px-3.5 text-sm text-[#13222b] outline-none transition focus:border-[#2eb86b] focus:bg-white focus:ring-2 focus:ring-[#2eb86b]/20"
               />

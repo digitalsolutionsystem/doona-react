@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import {
+  ArchiveRestore,
   Check,
   Copy,
   Database,
@@ -13,6 +14,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { BackupRestorePage } from './BackupRestorePage';
 import { DatabasePage } from './DatabasePage';
 import {
   ACCENT_PRESETS,
@@ -234,12 +236,28 @@ export const PengaturanPage: React.FC = () => {
           <Database className="h-3.5 w-3.5 shrink-0" />
           <span>Koneksi Database</span>
         </button>
+        <button
+          type="button"
+          onClick={() => setPgSub('backup')}
+          className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+            pgSub === 'backup'
+              ? 'bg-[#2eb86b] text-white shadow-xs'
+              : 'text-[#64748b] hover:text-[#13222b]'
+          }`}
+        >
+          <ArchiveRestore className="h-3.5 w-3.5 shrink-0" />
+          <span>Backup &amp; Restore</span>
+        </button>
       </div>
     </div>
   );
 
   if (pgSub === 'db') {
     return <DatabasePage headerLeft={settingsHeaderLeft} />;
+  }
+
+  if (pgSub === 'backup') {
+    return <BackupRestorePage headerLeft={settingsHeaderLeft} />;
   }
 
   return (

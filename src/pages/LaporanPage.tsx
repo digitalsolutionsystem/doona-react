@@ -351,7 +351,7 @@ export const LaporanPage: React.FC = () => {
     showNotice(
       'success',
       `Backup "${pendingRestore.fileName}" berhasil dipulihkan. Cadangan data sebelumnya telah disimpan otomatis.${
-        result.savedToCloud ? ' Tersinkron ke database cloud.' : ''
+        result.savedToCloud ? ' Tersimpan ke database SQLite.' : ''
       }`
     );
   };
@@ -1297,11 +1297,12 @@ export const LaporanPage: React.FC = () => {
                 <div className="rounded-xl bg-[#fef3c7] p-3.5 text-xs text-[#92400e]">
                   <div className="flex items-center gap-1.5 font-bold">
                     <Database className="h-3.5 w-3.5 text-[#b45309]" />
-                    Koneksi Google Apps Script Belum Aktif
+                    Mode Database SQLite Lokal (Offline)
                   </div>
                   <p className="mt-1 leading-relaxed">
-                    Integrasi bot Telegram berjalan melalui Google Apps Script (token bot tersimpan
-                    di Code.gs). Hubungkan dan login ke database Google Sheets terlebih dahulu.
+                    Aplikasi berjalan dengan database SQLite lokal tanpa jembatan bot Telegram.
+                    Gunakan tombol Salin Laporan untuk mengirim teks langsung ke WhatsApp atau
+                    Telegram desktop Anda.
                   </p>
                 </div>
                 <div className="mt-4 flex justify-end gap-2">

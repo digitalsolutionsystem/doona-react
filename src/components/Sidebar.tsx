@@ -306,7 +306,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const displayName = user?.nama || user?.username || 'Pengguna';
   const initial = (displayName.trim().charAt(0) || '?').toUpperCase();
   const roleLabel = user?.role === 'viewer' ? 'Viewer' : 'Admin';
-  const dbConnected = dbMode === 'gas' || dbMode === 'cloud_connected';
+  const dbConnected =
+    dbMode === 'sqlite_connected' || dbMode === 'gas' || dbMode === 'cloud_connected';
+  const dbNeedsLogin = dbMode === 'sqlite_unauth' || dbMode === 'cloud_unauth';
 
   const statusDotColor = sync.isError
     ? 'bg-[#ef4444]'
@@ -363,7 +365,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="flex h-8 items-center gap-1.5 rounded-lg bg-white/10 px-2.5 text-xs font-semibold text-white cursor-pointer"
         >
           <span className={`h-2 w-2 rounded-full ${statusDotColor}`} />
-          <span className="whitespace-nowrap">{dbConnected ? 'Cloud' : 'Lokal'}</span>
+          <span className="whitespace-nowrap">{dbConnected ? 'SQLite' : 'Cache'}</span>
         </button>
       </div>
 
@@ -572,12 +574,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <KeyRound className="h-3.5 w-3.5" />
                     </button>
-                    {dbMode === 'cloud_unauth' ? (
+                    {dbNeedsLogin ? (
                       <button
                         type="button"
                         onClick={() => setShowLoginModal(true)}
-                        title="Masuk Akun Cloud"
-                        aria-label="Masuk Akun Cloud"
+                        title="Masuk Akun SQLite"
+                        aria-label="Masuk Akun SQLite"
                         className="flex h-7 w-7 items-center justify-center rounded-lg text-[#14a38b] transition hover:bg-white/10 cursor-pointer"
                       >
                         <LogIn className="h-3.5 w-3.5" />
@@ -657,7 +659,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <KeyRound className="h-3.5 w-3.5 text-[#64748b]" />
                 <span>Ganti Password</span>
               </button>
-              {dbMode === 'cloud_unauth' ? (
+              {dbNeedsLogin ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -667,7 +669,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-[#14533c] hover:bg-[#e6f7ee] cursor-pointer"
                 >
                   <LogIn className="h-3.5 w-3.5" />
-                  <span>Masuk Akun Cloud</span>
+                  <span>Masuk Akun SQLite</span>
                 </button>
               ) : (
                 <button
